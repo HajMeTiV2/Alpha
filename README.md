@@ -107,3 +107,14 @@ Migration:
 
 After deployment run:
 `npx wrangler d1 migrations apply alpha-db --remote`
+
+
+## Alpha v6.0 — Operations Suite
+- Operations summary endpoint for expiring users, exhausted quotas, offline/stale nodes and unread notifications.
+- New dashboard attention center with actionable alerts.
+- Global Command Palette (`Ctrl/Cmd + K`) with navigation and common operations.
+- Improved keyboard-first navigation and mobile-friendly command UI.
+- Added operational indexes in migration `0012_operational_indexes.sql`.
+- Version labels and health endpoint aligned to 6.0.0.
+
+This release focuses on management UX, observability and operational safety. It intentionally does not copy ZEUS features related to stealth scanning, proxy harvesting/rotation, DPI evasion or traffic-obfuscation controls.
