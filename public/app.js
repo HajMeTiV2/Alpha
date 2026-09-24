@@ -18,31 +18,44 @@ npx wrangler secret put ALPHA_ADMIN_PASSWORD
 npx wrangler deploy`)}
 async function dash(){
   const stamp=()=>new Date().toLocaleTimeString("fa-IR",{hour:"2-digit",minute:"2-digit"});
-  try{
-    const [d,u,n,a,t,h]=await Promise.all([
-      api("/api/dashboard"), api("/api/users"), api("/api/nodes"), api("/api/activity"), api("/api/traffic/history?hours=24"), api("/api/settings/health")
-    ]);
-    const users=Array.isArray(u)?u:[], nodes=Array.isArray(n)?n:[], acts=Array.isArray(a)?a:[];
-    $("users").textContent=d.users??users.length;
-    $("active").textContent=d.activeUsers??users.filter(x=>x.status==="active").length;
-    $("nodes").textContent=d.nodes??nodes.length;
-    $("traffic").textContent=Number(d.trafficGb||0).toFixed(1)+" GB";
-    $("activity").textContent=d.activity24h??0;
-    const activeRate=users.length?Math.round((users.filter(x=>x.status==="active").length/users.length)*100):0;
-    $("active-rate").textContent=`${activeRate}٪ از کاربران`;
-    $("users-trend").textContent=users.length?`آخرین ثبت: ${formatDate(users[0]?.created_at)}`:"هنوز کاربری ثبت نشده";
-    const online=nodes.filter(x=>x.status==="online"||x.status==="active").length;
-    $("nodes-health").textContent=nodes.length?`${online} آنلاین · ${nodes.length-online} نیازمند بررسی`:"هنوز Node ثبت نشده";
-    $("dash-last-sync").textContent=`آخرین بروزرسانی ${stamp()}`;
-    renderDashTraffic(t);
-    renderDashUsers(users);
-    renderDashNodes(nodes);
-    renderDashActivity(acts);
-    renderDashHealth(h,nodes);
-  }catch(e){
-    console.error("dashboard",e);
-    $("dash-last-sync")?.replaceChildren(document.createTextNode("خطا در دریافت اطلاعات"));
+  const results=await Promise.allSettled([
+    api("/api/dashboard"),
+    api("/api/users"),
+    api("/api/nodes"),
+    api("/api/activity"),
+    api("/api/traffic/history?hours=24"),
+    api("/api/settings/health")
+  ]);
+  const [rd,ru,rn,ra,rt,rh]=results;
+  if(rd.status!=="fulfilled"){
+    console.error("dashboard api",rd.reason);
+    if($("dash-last-sync")) $("dash-last-sync").textContent="خطا در دریافت آمار اصلی";
+    return;
   }
+  const d=rd.value||{};
+  const users=ru.status==="fulfilled" && Array.isArray(ru.value)?ru.value:[];
+  const nodes=rn.status==="fulfilled" && Array.isArray(rn.value)?rn.value:[];
+  const acts=ra.status==="fulfilled" && Array.isArray(ra.value)?ra.value:[];
+  const traffic=rt.status==="fulfilled"?rt.value:{items:[],current_used_gb:Number(d.trafficGb||0)};
+  const health=rh.status==="fulfilled"?rh.value:{checks:[]};
+  $("users").textContent=d.users??users.length;
+  $("active").textContent=d.activeUsers??users.filter(x=>x.status==="active").length;
+  $("nodes").textContent=d.nodes??nodes.length;
+  $("traffic").textContent=Number(d.trafficGb||0).toFixed(1)+" GB";
+  $("activity").textContent=d.activity24h??acts.length;
+  const activeRate=users.length?Math.round((users.filter(x=>x.status==="active").length/users.length)*100):0;
+  $("active-rate").textContent=`${activeRate}٪ از کاربران`;
+  $("users-trend").textContent=users.length?`آخرین ثبت: ${formatDate(users[0]?.created_at)}`:"هنوز کاربری ثبت نشده";
+  const online=nodes.filter(x=>x.status==="online"||x.status==="active").length;
+  $("nodes-health").textContent=nodes.length?`${online} آنلاین · ${nodes.length-online} نیازمند بررسی`:"هنوز Node ثبت نشده";
+  $("dash-last-sync").textContent=`آخرین بروزرسانی ${stamp()}`;
+  renderDashTraffic(traffic);
+  renderDashUsers(users);
+  renderDashNodes(nodes);
+  renderDashActivity(acts);
+  renderDashHealth(health,nodes);
+  if(rt.status!=="fulfilled") console.warn("traffic history unavailable",rt.reason);
+  if(rh.status!=="fulfilled") console.warn("health unavailable",rh.reason);
 }
 async function alphaRefreshDashboard(){await dash()}
 function renderDashTraffic(d){
