@@ -54,10 +54,84 @@ async function dash(){
   renderDashNodes(nodes);
   renderDashActivity(acts);
   renderDashHealth(health,nodes);
+  alphaLoadOperations();
   if(rt.status!=="fulfilled") console.warn("traffic history unavailable",rt.reason);
   if(rh.status!=="fulfilled") console.warn("health unavailable",rh.reason);
 }
 async function alphaRefreshDashboard(){await dash()}
+
+const alphaCommands = [
+  {label:"داشبورد", hint:"نمای کلی و عملیات", icon:"⌂", action:()=>alphaOpenView("dashboard")},
+  {label:"مدیریت کاربران", hint:"جستجو، سهمیه و وضعیت", icon:"♙", action:()=>alphaOpenView("users")},
+  {label:"نودها", hint:"وضعیت، latency و مانیتورینگ", icon:"◇", action:()=>alphaOpenView("nodes")},
+  {label:"اشتراک‌ها", hint:"مدیریت و تمدید", icon:"▣", action:()=>alphaOpenView("subscriptions")},
+  {label:"ترافیک", hint:"تاریخچه مصرف", icon:"◫", action:()=>alphaOpenView("traffic")},
+  {label:"فعالیت و Audit", hint:"رویدادهای مدیریتی", icon:"◌", action:()=>alphaOpenView("activity")},
+  {label:"امنیت و Backup", hint:"بررسی امنیت و خروجی", icon:"◈", action:()=>alphaOpenView("security")},
+  {label:"Production Center", hint:"سلامت Worker و PWA", icon:"☁", action:()=>alphaOpenView("production")},
+  {label:"دسترسی ادمین", hint:"Role و دسترسی", icon:"⚙", action:()=>alphaOpenView("settings")},
+  {label:"ظاهر پنل", hint:"Theme و تنظیمات رابط", icon:"◐", action:()=>alphaOpenView("appearance")},
+  {label:"کاربر جدید", hint:"ایجاد حساب جدید", icon:"＋", action:()=>openModal()},
+  {label:"Node جدید", hint:"افزودن زیرساخت", icon:"＋", action:()=>openNodeModal()},
+  {label:"ثبت Snapshot", hint:"ثبت نقطه فعلی ترافیک", icon:"◫", action:()=>captureTrafficNow()},
+  {label:"بروزرسانی داشبورد", hint:"دریافت دوباره وضعیت", icon:"↻", action:()=>alphaRefreshDashboard()}
+];
+let alphaCommandIndex=0;
+function alphaRenderCommands(list=alphaCommands){
+  const box=$("alpha-command-list"); if(!box)return;
+  if(!list.length){box.innerHTML='<div class="command-empty">موردی پیدا نشد.</div>';return;}
+  alphaCommandIndex=Math.min(alphaCommandIndex,list.length-1);
+  box.innerHTML=list.map((x,i)=>`<button class="command-item ${i===alphaCommandIndex?"active":""}" data-command-index="${i}"><span class="command-icon">${x.icon}</span><span><b>${esc(x.label)}</b><small>${esc(x.hint)}</small></span><kbd>${i<9?i+1:""}</kbd></button>`).join("");
+  box.querySelectorAll(".command-item").forEach((el,i)=>el.onclick=()=>alphaRunCommand(list[i]));
+}
+function alphaRunCommand(cmd){
+  alphaCloseCommandPalette();
+  setTimeout(()=>{try{cmd.action()}catch(e){console.error(e)}},20);
+}
+function alphaOpenCommandPalette(){
+  const p=$("alpha-command-palette"); if(!p)return;
+  p.classList.remove("hidden");
+  const input=$("alpha-command-input"); if(input){input.value="";alphaCommandIndex=0;alphaRenderCommands();setTimeout(()=>input.focus(),0);}
+}
+function alphaCloseCommandPalette(){$("alpha-command-palette")?.classList.add("hidden")}
+function alphaFilterCommands(q){
+  q=String(q||"").trim().toLowerCase();
+  const list=q?alphaCommands.filter(x=>(x.label+" "+x.hint).toLowerCase().includes(q)):alphaCommands;
+  alphaCommandIndex=0;alphaRenderCommands(list);
+}
+document.addEventListener("keydown",(e)=>{
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();alphaOpenCommandPalette();return}
+  const p=$("alpha-command-palette");
+  if(!p||p.classList.contains("hidden"))return;
+  if(e.key==="Escape"){e.preventDefault();alphaCloseCommandPalette();return}
+  const input=$("alpha-command-input");
+  const q=input?.value||"";
+  const list=q?alphaCommands.filter(x=>(x.label+" "+x.hint).toLowerCase().includes(q.toLowerCase())):alphaCommands;
+  if(e.key==="ArrowDown"||e.key==="ArrowUp"){
+    e.preventDefault();alphaCommandIndex=(alphaCommandIndex+(e.key==="ArrowDown"?1:-1)+list.length)%Math.max(list.length,1);alphaRenderCommands(list);
+    return;
+  }
+  if(e.key==="Enter"&&list[alphaCommandIndex]){e.preventDefault();alphaRunCommand(list[alphaCommandIndex]);}
+});
+async function alphaLoadOperations(){
+  const box=$("alpha-attention-list");if(!box)return;
+  try{
+    const d=await api("/api/operations/summary");
+    const items=d.items||[];
+    const snapshot=d.traffic_snapshot;
+    const stale=snapshot&&snapshot.age_minutes>90;
+    if(!items.length&&!stale){
+      box.innerHTML='<div class="attention-good"><span>✓</span><div><b>همه‌چیز تحت کنترل است</b><small>در حال حاضر مورد فوری برای بررسی ثبت نشده است.</small></div></div>';
+      return;
+    }
+    const rows=items.map(x=>`<button class="attention-item ${esc(x.level)}" onclick="alphaOpenView('${esc(x.target)}')"><span class="attention-icon">${x.level==="danger"?"!":x.level==="warning"?"△":"i"}</span><span><b>${esc(x.title)}</b><small>${x.count} مورد نیازمند توجه</small></span><strong>مشاهده</strong></button>`);
+    if(stale)rows.push(`<button class="attention-item info" onclick="alphaOpenView('traffic')"><span class="attention-icon">◫</span><span><b>Snapshot ترافیک قدیمی است</b><small>آخرین ثبت ${snapshot.age_minutes} دقیقه قبل</small></span><strong>ترافیک</strong></button>`);
+    box.innerHTML=rows.join("");
+  }catch(e){
+    box.innerHTML=`<div class="attention-error"><b>بررسی عملیات انجام نشد</b><small>${esc(e.message||"خطای ناشناخته")}</small></div>`;
+  }
+}
+
 function renderDashTraffic(d){
   const items=d?.items||[], chart=$("dash-traffic-chart");
   const current=Number(d?.current_used_gb||0);
