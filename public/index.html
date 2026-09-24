@@ -1,102 +1,161 @@
-<!doctype html>
-<html lang="fa" dir="rtl">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ALPHA — Command Center</title>
-  <meta name="description" content="ALPHA Network Command Center">
-  <link rel="stylesheet" href="/styles.css">
-</head>
-<body>
-  <div class="bg-grid"></div>
-  <aside class="sidebar">
-    <div class="brand">
-      <div class="alpha-mark">A</div>
-      <div><strong>ALPHA</strong><span>COMMAND CENTER</span></div>
+<!doctype html><html lang="fa" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#080a12"><title>ALPHA • Control Panel</title><link rel="stylesheet" href="/styles.css"><link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#070b12"><meta name="mobile-web-app-capable" content="yes"></head><body>
+<section id="installer" class="auth hidden">
+<div class="auth-card installer-card">
+  <div class="install-brand"><div class="logo">A</div><div><b>ALPHA</b><small>AUTO INSTALLER</small></div></div>
+  <div class="eyebrow">CLOUDFLARE SETUP</div>
+  <h1>راه‌اندازی پنل Alpha</h1>
+  <p>اتصال اکانت Cloudflare، ساخت D1 و آماده‌سازی پنل.</p>
+
+  <div class="wizard">
+    <div class="wiz active"><i>1</i><span>اتصال</span></div>
+    <div class="wiz"><i>2</i><span>بررسی</span></div>
+    <div class="wiz"><i>3</i><span>Database</span></div>
+    <div class="wiz"><i>4</i><span>تکمیل</span></div>
+  </div>
+
+  <div class="security-card">
+    <span>🔒</span>
+    <div><b>اتصال امن</b><small>Token فقط برای درخواست فعلی استفاده می‌شود و در Alpha ذخیره نمی‌شود.</small></div>
+  </div>
+
+  <label class="field">Cloudflare API Token
+    <div class="secret-wrap"><input id="cf-token" type="password" autocomplete="off" placeholder="Token را وارد کنید"><button type="button" onclick="toggleSecret()">نمایش</button></div>
+  </label>
+
+  <button class="primary wide install-btn" onclick="checkToken()">بررسی و ادامه <span>←</span></button>
+  <div id="install-result"></div>
+
+  <div class="install-footer"><span>ALPHA v2.2</span><span>@V2rayTun0</span></div>
+</div>
+</section>
+
+<section id="login" class="auth"><div class="auth-card"><div class="logo">A</div><small>ALPHA CONTROL</small><h1>ورود به پنل</h1><p>مرکز کنترل امن Alpha</p><input id="password" type="password" placeholder="رمز مدیریت"><button class="primary wide" onclick="login()">ورود به Alpha</button><em>@V2rayTun0</em><button class="text-link" type="button" onclick="showInstaller()">راه‌اندازی / نصب مجدد Alpha</button></div></section>
+<div id="app" class="hidden app"><aside><div class="brand"><b>A</b><span>ALPHA<small>CONTROL PANEL</small></span></div><nav><button data-p="dashboard">◈ داشبورد</button><button data-p="users">◎ کاربران</button><button data-p="nodes">◇ نودها</button><button data-p="subscriptions">▣ اشتراک‌ها</button><button data-p="traffic">◫ ترافیک</button><button data-p="activity">◌ فعالیت‌ها</button><button data-p="settings">⚙ تنظیمات</button></nav><footer>@V2rayTun0<br><button onclick="logout()">خروج</button></footer></aside>
+<main><header><span>● سیستم آنلاین</span><span>ALPHA v2.0</span></header>
+<section id="dashboard" class="page"><div class="head"><div><small>OVERVIEW</small><h1>خوش آمدی به Alpha</h1><p>مرکز کنترل سرویس و زیرساخت</p></div><button class="primary" onclick="openModal()">+ کاربر جدید</button></div><div class="stats"><article>کاربران<strong id="users">0</strong></article><article>فعال<strong id="active">0</strong></article><article>نودها<strong id="nodes">0</strong></article><article>مصرف<strong id="traffic">0 GB</strong></article></div><div class="grid"><div class="panel"><h3>وضعیت سیستم</h3><p>Worker <b>Online</b></p><p>D1 Database <b>Connected</b></p><p>Authentication <b>Protected</b></p></div><div class="panel"><h3>فعالیت ۲۴ ساعت</h3><strong class="big" id="activity">0</strong></div></div></section>
+<section id="users-page" class="page hidden"><div class="head"><div><small>USERS</small><h1>مدیریت کاربران</h1></div><button class="primary" onclick="openModal()">+ افزودن</button></div><div class="panel"><input id="search" placeholder="جستجو..." oninput="renderUsers()"><div class="table"><table><thead><tr><th>کاربر</th><th>پروتکل</th><th>کشور</th><th>مصرف</th><th>وضعیت</th><th>عملیات</th></tr></thead><tbody id="ut"></tbody></table></div></div></section>
+<section id="subscriptions-page" class="page hidden"><div class="head"><div><small>SUBSCRIPTIONS</small><h1>اشتراک‌ها</h1></div><button class="primary" onclick="openSubModal()">+ اشتراک جدید</button></div><div class="panel"><div class="table"><table><thead><tr><th>کاربر</th><th>پروتکل</th><th>Quota</th><th>مصرف</th><th>دستگاه</th><th>وضعیت</th><th>عملیات</th></tr></thead><tbody id="subs-list"></tbody></table></div></div></section>
+<section id="nodes-page" class="page hidden"><div class="head"><h1>نودها</h1><button class="primary" onclick="openNodeModal()">+ افزودن Node</button></div><div class="panel" id="nl">هنوز نودی ثبت نشده است.</div></section>
+<section id="traffic-page" class="page hidden"><div class="head"><h1>ترافیک</h1></div><div class="panel center"><strong class="big" id="tv">0 GB</strong><div class="bar"><i id="tb"></i></div></div></section>
+<section id="activity-page" class="page hidden"><div class="head"><h1>فعالیت‌ها</h1></div><div class="panel" id="al"></div></section>
+<section id="settings-page" class="page hidden"><div class="head"><h1>تنظیمات</h1></div><div class="panel settings"><p>برند <b>ALPHA</b></p><p>کانال <b>@V2rayTun0</b></p><p>سازنده <b>@Mehtif</b></p><p>نسخه <b>2.0.0</b></p></div></section>
+
+<section id="subscription-center" class="view">
+  <div class="section-head">
+    <div>
+      <span class="eyebrow">SUBSCRIPTION CENTER</span>
+      <h2>مدیریت اشتراک‌ها</h2>
     </div>
-    <nav>
-      <button class="nav active" data-section="dashboard">◈ داشبورد</button>
-      <button class="nav" data-section="users">◎ کاربران</button>
-      <button class="nav" data-section="activity">◌ فعالیت‌ها</button>
-      <button class="nav" data-section="settings">⚙ تنظیمات</button>
-    </nav>
-    <div class="side-foot">
-      <span class="dot"></span> Alpha Core Online
-      <small>@V2rayTun0 · @Mehtif</small>
+    <div class="head-actions">
+      <button class="ghost" onclick="alphaExportSubscriptions()">Export CSV</button>
+      <button class="primary" onclick="alphaLoadSubscriptions()">↻ بروزرسانی</button>
     </div>
-  </aside>
+  </div>
 
-  <main class="main">
-    <header class="topbar">
-      <div>
-        <div class="eyebrow">ALPHA NETWORK</div>
-        <h1 id="pageTitle">مرکز فرمان Alpha</h1>
-      </div>
-      <button class="primary" id="addBtn">＋ ساخت کاربر</button>
-    </header>
+  <div class="alpha-sub-toolbar">
+    <input id="alpha-sub-search" placeholder="جستجوی کاربر، کشور یا پروتکل">
+    <select id="alpha-sub-status">
+      <option value="">همه وضعیت‌ها</option>
+      <option value="active">فعال</option>
+      <option value="suspended">معلق</option>
+      <option value="expired">منقضی</option>
+    </select>
+    <select id="alpha-sub-sort">
+      <option value="created_at">جدیدترین</option>
+      <option value="expires_at">انقضا</option>
+      <option value="used_gb">مصرف</option>
+      <option value="quota_gb">Quota</option>
+    </select>
+  </div>
 
-    <section id="dashboard" class="section active">
-      <div class="hero">
-        <div>
-          <span class="pill">ALPHA CORE / READY</span>
-          <h2>کنترل شبکه، ساده و دقیق.</h2>
-          <p>مدیریت کاربران، سهمیه، پروتکل و وضعیت سرویس از یک مرکز واحد.</p>
-        </div>
-        <div class="hero-ring">α</div>
-      </div>
-      <div class="stats">
-        <div class="card"><span>کاربران</span><b id="statUsers">0</b><small>کل پروفایل‌ها</small></div>
-        <div class="card"><span>فعال</span><b id="statActive">0</b><small>پروفایل‌های فعال</small></div>
-        <div class="card"><span>مصرف</span><b id="statUsage">0 GB</b><small>مجموع مصرف</small></div>
-        <div class="card"><span>هسته</span><b class="online">ONLINE</b><small>API / D1</small></div>
-      </div>
-      <div class="panel">
-        <div class="panel-head"><div><b>آخرین کاربران</b><span>Recent Alpha Profiles</span></div><button class="ghost" data-section-jump="users">مشاهده همه</button></div>
-        <div id="recentUsers" class="table-wrap"></div>
-      </div>
-    </section>
+  <div id="alpha-sub-stats" class="alpha-sub-stats"></div>
+  <div id="alpha-sub-list" class="table-wrap"></div>
+</section>
 
-    <section id="users" class="section">
-      <div class="toolbar">
-        <input id="search" placeholder="جستجوی نام، پروتکل یا کشور...">
-        <button class="ghost" id="refresh">↻ بروزرسانی</button>
-      </div>
-      <div class="panel"><div id="usersTable" class="table-wrap"></div></div>
-    </section>
 
-    <section id="activity" class="section">
-      <div class="panel">
-        <div class="panel-head"><div><b>Activity</b><span>رویدادهای مدیریتی</span></div></div>
-        <div class="empty">لاگ‌های فعالیت در نسخه بعدی از D1 خوانده خواهند شد.</div>
-      </div>
-    </section>
+<section id="security-center" class="view">
+  <div class="section-head">
+    <div><span class="eyebrow">SECURITY CENTER</span><h2>امنیت و Audit</h2></div>
+    <div class="head-actions">
+      <button class="ghost" onclick="alphaSecurityCheck()">بررسی امنیت</button>
+      <button class="primary" onclick="alphaBackupDownload()">Export Backup</button>
+    </div>
+  </div>
 
-    <section id="settings" class="section">
-      <div class="panel settings">
-        <h3>تنظیمات Alpha</h3>
-        <label>کانال <input value="@V2rayTun0" disabled></label>
-        <label>سازنده <input value="@Mehtif" disabled></label>
-        <label>Repository <input value="HajMeTiV2/Alpha" disabled></label>
-      </div>
-    </section>
-  </main>
+  <div id="alpha-security-status" class="alpha-security-grid"></div>
 
-  <dialog id="userDialog">
-    <form method="dialog" id="userForm">
-      <div class="dialog-head"><b>ساخت پروفایل Alpha</b><button value="cancel" class="icon-btn">×</button></div>
-      <label>نام کاربر<input name="username" required placeholder="alpha_user"></label>
-      <div class="grid2">
-        <label>پروتکل<select name="protocol"><option>VLESS</option><option>Trojan</option><option>Shadowsocks</option></select></label>
-        <label>کشور<input name="country" value="IR" maxlength="3"></label>
+  <div class="alpha-security-panels">
+    <div class="panel-card">
+      <div class="panel-title"><div><span class="eyebrow">AUDIT LOG</span><h3>رویدادهای مدیریتی</h3></div>
+        <button class="ghost small" onclick="alphaLoadAudit()">↻</button>
       </div>
-      <div class="grid2">
-        <label>سهمیه GB<input name="quota_gb" type="number" min="1" value="50"></label>
-        <label>دستگاه<input name="device_limit" type="number" min="1" value="2"></label>
+      <div class="alpha-audit-toolbar">
+        <input id="alpha-audit-search" placeholder="جستجوی action، actor یا details">
       </div>
-      <button class="primary" value="default">ایجاد پروفایل</button>
-    </form>
-  </dialog>
+      <div id="alpha-audit-list" class="table-wrap"></div>
+    </div>
 
-  <script src="/app.js"></script>
-</body>
-</html>
+    <div class="panel-card">
+      <div class="panel-title"><div><span class="eyebrow">BACKUP</span><h3>پشتیبان‌گیری</h3></div></div>
+      <p class="muted">Backup شامل داده‌های مدیریتی D1 است. فایل خروجی را خارج از Worker و در محل امن نگهداری کن.</p>
+      <div class="backup-actions">
+        <button class="primary" onclick="alphaBackupDownload()">دریافت Backup JSON</button>
+      </div>
+      <div class="security-note">توکن‌های Cloudflare و Secretهای Worker در Backup قرار نمی‌گیرند.</div>
+    </div>
+  </div>
+</section>
+
+<section id="alpha-production" class="view">
+<div class="section-head"><div><span class="eyebrow">PRODUCTION</span><h2>ALPHA Production Center</h2></div><button class="primary" onclick="alphaProductionCheck()">بررسی سیستم</button></div>
+<div id="alpha-prod-grid" class="alpha-prod-grid"></div>
+<div class="alpha-prod-card"><div><span class="eyebrow">PWA</span><h3>نصب ALPHA روی دستگاه</h3><p class="muted">اگر مرورگر از نصب PWA پشتیبانی کند، ALPHA می‌تواند مانند یک اپ مستقل اجرا شود.</p></div><button class="ghost" onclick="alphaInstallPWA()">Install ALPHA</button></div>
+<div class="alpha-prod-card"><div><span class="eyebrow">VERSION</span><h3>ALPHA v3.0</h3><p class="muted">Production-ready UI, PWA shell, health checks and deployment guidance.</p></div><span class="badge active">READY</span></div>
+</section>
+<section id="alpha-settings-center" class="view">
+  <div class="section-head">
+    <div><span class="eyebrow">CONTROL CENTER</span><h2>تنظیمات و دسترسی</h2></div>
+    <button class="primary" onclick="alphaRefreshControlCenter()">↻ بروزرسانی</button>
+  </div>
+  <div id="alpha-settings-health" class="alpha-settings-grid"></div>
+  <div class="alpha-admin-card">
+    <div class="panel-title"><div><span class="eyebrow">ADMIN ROLES</span><h3>مدیریت دسترسی ادمین‌ها</h3></div></div>
+    <div class="alpha-admin-create">
+      <input id="alpha-admin-name" placeholder="نام کاربری">
+      <select id="alpha-admin-role"><option value="viewer">Viewer</option><option value="operator">Operator</option><option value="admin">Admin</option><option value="owner">Owner</option></select>
+      <button class="primary" onclick="alphaCreateAdmin()">افزودن</button>
+    </div>
+    <div id="alpha-admin-list" class="table-wrap"></div>
+  </div>
+</section>
+
+<section id="alpha-ui-center" class="view">
+  <div class="section-head">
+    <div><span class="eyebrow">ALPHA UI</span><h2>تنظیمات ظاهری و Panel</h2></div>
+    <button class="primary" onclick="alphaSaveUISettings()">ذخیره تنظیمات</button>
+  </div>
+  <div class="alpha-ui-grid">
+    <div class="alpha-ui-card"><label>نام Panel<input id="alpha-set-name" maxlength="80"></label></div>
+    <div class="alpha-ui-card"><label>Channel<input id="alpha-set-channel" maxlength="100"></label></div>
+    <div class="alpha-ui-card"><label>Creator<input id="alpha-set-creator" maxlength="100"></label></div>
+    <div class="alpha-ui-card"><label>Theme<select id="alpha-set-theme"><option value="dark">Dark</option><option value="light">Light</option></select></label></div>
+    <div class="alpha-ui-card"><label>Accent<select id="alpha-set-accent"><option value="cyan">Cyan</option><option value="violet">Violet</option><option value="green">Green</option><option value="amber">Amber</option></select></label></div>
+    <div class="alpha-ui-card"><label><input type="checkbox" id="alpha-set-compact"> Compact Mode</label></div>
+    <div class="alpha-ui-card"><label><input type="checkbox" id="alpha-set-notify"> Notifications</label></div>
+  </div>
+</section>
+
+<div id="alpha-notification-drawer" class="alpha-notif-drawer hidden">
+  <div class="alpha-notif-head"><b>Notifications</b><button onclick="alphaToggleNotifications()">×</button></div>
+  <div id="alpha-notif-list"></div>
+  <button class="ghost small" onclick="alphaReadAllNotifications()">Mark all read</button>
+</div>
+</main></div>
+<dialog id="modal"><form method="dialog" onsubmit="createUser(event)"><h2>کاربر جدید</h2><input id="un" required placeholder="نام کاربری"><div class="two"><input id="up" value="VLESS" placeholder="پروتکل"><input id="uq" type="number" value="50" placeholder="سهمیه GB"></div><input id="uc" value="Unknown" placeholder="کشور"><input id="ud" type="number" value="1" min="1" placeholder="دستگاه"><button class="primary wide">ساخت کاربر</button></form></dialog>
+<dialog id="profile-modal"><div class="profile-card"><button class="modal-close" onclick="this.closest('dialog').close()">×</button><div id="profile-body"></div></div></dialog>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script><script src="/app.js"></script>
+<div id="node-modal" class="modal hidden"><div class="modal-card"><button class="modal-close" onclick="closeModal('node-modal')">×</button><h3>افزودن Node</h3><input id="n-name" placeholder="نام Node"><input id="n-country" placeholder="کشور"><input id="n-endpoint" placeholder="Endpoint"><select id="n-protocol"><option>VLESS</option><option>Trojan</option></select><button class="primary wide" onclick="saveNode()">ذخیره</button></div></div>
+<div id="sub-modal" class="modal hidden"><div class="modal-card"><button class="modal-close" onclick="closeModal('sub-modal')">×</button><h3>ساخت اشتراک</h3><input id="s-user" placeholder="Username"><input id="s-quota" type="number" placeholder="Quota GB" value="10"><input id="s-devices" type="number" placeholder="Device limit" value="2"><select id="s-protocol"><option>VLESS</option><option>Trojan</option></select><button class="primary wide" onclick="saveSub()">ساخت اشتراک</button></div></div>
+
+<div id="user-detail-modal" class="modal hidden"><div class="modal-card user-detail-card"><button class="modal-close" onclick="closeModal('user-detail-modal')">×</button><div id="user-detail-content"></div></div></div>
+</body></html>
