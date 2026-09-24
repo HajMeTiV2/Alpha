@@ -30,8 +30,8 @@
 </section>
 
 <section id="login" class="auth"><div class="auth-card"><div class="logo">A</div><small>ALPHA CONTROL</small><h1>ورود به پنل</h1><p>مرکز کنترل امن Alpha</p><input id="password" type="password" placeholder="رمز مدیریت"><button class="primary wide" onclick="login()">ورود به Alpha</button><em>@V2rayTun0</em><button class="text-link" type="button" onclick="showInstaller()">راه‌اندازی / نصب مجدد Alpha</button></div></section>
-<div id="app" class="hidden app"><aside id="alpha-sidebar"><div class="brand"><b>A</b><span>ALPHA<small>CONTROL CENTER</small></span></div><button class="sidebar-toggle" type="button" onclick="toggleSidebar()">☰ <span>منو</span></button><nav><button data-p="dashboard">⌂ <span>داشبورد</span></button><button data-p="users">♙ <span>کاربران</span></button><button data-p="nodes">◇ <span>نودها</span></button><button data-p="subscriptions">▣ <span>اشتراک‌ها</span></button><button data-p="traffic">◫ <span>ترافیک</span></button><button data-p="activity">◌ <span>فعالیت و Audit</span></button><button data-p="security">▤ <span>امنیت و Backup</span></button><button data-p="production">☁ <span>Cloudflare / PWA</span></button><button data-p="settings">⚙ <span>دسترسی ادمین</span></button><button data-p="appearance">◐ <span>ظاهر و Panel</span></button></nav><footer><span>@V2rayTun0</span><button class="footer-shortcut" onclick="alphaOpenCommandPalette()">⌘K</button><button onclick="logout()">خروج</button></footer></aside>
-<main><header><span class="header-status">● سیستم آنلاین</span><div class="header-actions"><button class="icon-btn" onclick="alphaToggleNotifications()">♧</button><span>ALPHA v6.0</span></div></header>
+<div id="app" class="hidden app"><aside id="alpha-sidebar"><div class="brand"><b>A</b><span>ALPHA<small>CONTROL CENTER</small></span></div><button class="sidebar-toggle" type="button" onclick="toggleSidebar()">☰ <span>منو</span></button><nav><button data-p="dashboard">⌂ <span>داشبورد</span></button><button data-p="users">♙ <span>کاربران</span></button><button data-p="nodes">◇ <span>نودها</span></button><button data-p="subscriptions">▣ <span>اشتراک‌ها</span></button><button data-p="traffic">◫ <span>ترافیک</span></button><button data-p="reports">▤ <span>گزارش‌ها</span></button><button data-p="activity">◌ <span>فعالیت و Audit</span></button><button data-p="security">▤ <span>امنیت و Backup</span></button><button data-p="production">☁ <span>Cloudflare / PWA</span></button><button data-p="settings">⚙ <span>دسترسی ادمین</span></button><button data-p="appearance">◐ <span>ظاهر و Panel</span></button></nav><footer><span>@V2rayTun0</span><button class="footer-shortcut" onclick="alphaOpenCommandPalette()">⌘K</button><button onclick="logout()">خروج</button></footer></aside>
+<main><header><span class="header-status">● سیستم آنلاین</span><div class="header-actions"><button class="icon-btn notification-trigger" aria-label="اعلان‌ها" onclick="alphaToggleNotifications()">♧<b id="alpha-notif-count" class="notif-count hidden">0</b></button><span>ALPHA v6.8.0</span></div></header>
 <section id="dashboard" class="page alpha-dashboard">
   <div class="alpha-dash-hero">
     <div class="alpha-hero-copy">
@@ -82,6 +82,24 @@
     </section>
   </div>
 
+  <section class="alpha-intelligence panel-card" id="alpha-intelligence">
+    <div class="attention-head">
+      <div><span class="dash-kicker">DASHBOARD INTELLIGENCE</span><h3>نمای تحلیلی</h3><p>شاخص‌های عملیاتی، روند رشد و ریسک‌های نزدیک بر اساس داده‌های فعلی.</p></div>
+      <button class="glass-btn small" onclick="alphaRenderIntelligence()">↻ تحلیل مجدد</button>
+    </div>
+    <div id="alpha-intelligence-kpis" class="alpha-intel-kpis">
+      <div class="intel-card"><span>نرخ فعال‌بودن</span><b>—</b><small>کاربران فعال</small></div>
+      <div class="intel-card"><span>میانگین مصرف</span><b>—</b><small>برای هر کاربر</small></div>
+      <div class="intel-card"><span>ریسک Quota</span><b>—</b><small>بالای ۸۰٪ مصرف</small></div>
+      <div class="intel-card"><span>انقضای ۷ روزه</span><b>—</b><small>نیازمند پیگیری</small></div>
+      <div class="intel-card"><span>روند ترافیک</span><b>—</b><small>نسبت به Snapshot اول</small></div>
+    </div>
+    <div class="alpha-intel-grid">
+      <div class="intel-panel"><div class="dash-panel-head"><div><span class="dash-kicker">FORECAST</span><h4>پیش‌بینی انقضا</h4></div></div><div id="alpha-expiry-forecast" class="intel-list"></div></div>
+      <div class="intel-panel"><div class="dash-panel-head"><div><span class="dash-kicker">RISK MONITOR</span><h4>ریسک‌های قابل پیگیری</h4></div></div><div id="alpha-risk-list" class="intel-list"></div></div>
+    </div>
+  </section>
+
   <div class="alpha-dash-grid alpha-dash-grid-mid">
     <section class="dash-panel">
       <div class="dash-panel-head"><div><span class="dash-kicker">RECENT USERS</span><h3>کاربران اخیر</h3></div><button class="glass-btn small" onclick="alphaOpenView('users')">مشاهده همه</button></div>
@@ -117,6 +135,7 @@
   <div class="alpha-user-toolbar panel-card">
     <div class="alpha-user-search"><span>⌕</span><input id="user-search" placeholder="جستجوی نام کاربری، کشور یا پروتکل" oninput="debouncedUsers()"></div>
     <select id="user-status" onchange="loadProUsers()"><option value="">همه وضعیت‌ها</option><option value="active">فعال</option><option value="suspended">معلق</option><option value="disabled">غیرفعال</option><option value="expired">منقضی</option></select>
+    <select id="user-country" onchange="loadProUsers()"><option value="">همه کشورها</option></select>
     <select id="user-sort" onchange="loadProUsers()"><option value="created_at">جدیدترین</option><option value="username">نام کاربری</option><option value="used_gb">بیشترین مصرف</option><option value="quota_gb">بیشترین سهمیه</option><option value="expires_at">نزدیک‌ترین انقضا</option></select>
     <button class="ghost" onclick="clearUserFilters()">پاک کردن</button>
   </div>
@@ -127,6 +146,7 @@
     <div class="user-stat"><span>در آستانه انقضا</span><b id="u-expiring">—</b><small>نیازمند بررسی</small></div>
   </div>
   <div id="bulk-bar" class="alpha-bulk-bar hidden"><div><b id="selected-count">0 انتخاب</b><span>کاربر انتخاب شده</span></div><div><button class="ghost" onclick="bulkUserAction('activate')">فعال‌سازی</button><button class="ghost" onclick="bulkUserAction('suspend')">تعلیق</button><button class="danger" onclick="bulkUserAction('delete')">حذف</button></div></div>
+  <div class="alpha-list-meta"><span id="user-page-range">—</span><div><button class="ghost small" onclick="changeUserPage(-1)">‹ قبلی</button><button class="ghost small" onclick="changeUserPage(1)">بعدی ›</button></div></div>
   <div class="panel-card alpha-users-table-card"><div class="panel-title"><div><span class="eyebrow">USERS</span><h3>فهرست کاربران</h3></div><span class="muted" id="users-result-count">—</span></div><div id="pro-users-list" class="table-wrap alpha-users-table"><div class="dash-empty">در حال دریافت کاربران...</div></div></div>
 </section>
 <section id="subscriptions-page" class="page hidden"><div class="head"><div><small>SUBSCRIPTIONS</small><h1>اشتراک‌ها</h1></div><button class="primary" onclick="openSubModal()">+ اشتراک جدید</button></div><div class="panel"><div class="table"><table><thead><tr><th>کاربر</th><th>پروتکل</th><th>Quota</th><th>مصرف</th><th>دستگاه</th><th>وضعیت</th><th>عملیات</th></tr></thead><tbody id="subs-list"></tbody></table></div></div></section>
@@ -137,13 +157,27 @@
   </div>
   <div id="node-stats" class="stats-grid alpha-node-stats"></div>
   <div class="panel-card node-toolbar">
-    <label class="toggle-line"><input type="checkbox" id="alpha-auto-node-check" onchange="toggleAutoNodeCheck(this.checked)"><span>مانیتورینگ خودکار هر ۶۰ ثانیه</span></label>
+    <div class="node-toolbar-left"><label class="toggle-line"><input type="checkbox" id="alpha-auto-node-check" onchange="toggleAutoNodeCheck(this.checked)"><span>مانیتورینگ خودکار هر ۶۰ ثانیه</span></label></div>
     <span id="node-last-check" class="muted">آخرین بررسی: —</span>
   </div>
   <div id="nodes-monitor-list" class="nodes-monitor-grid"></div>
 </section>
-<section id="traffic-page" class="page hidden"><div class="head"><div><small>TRAFFIC ANALYTICS</small><h1>ترافیک و مصرف</h1><p>تاریخچه واقعی مصرف ثبت‌شده توسط ALPHA</p></div><button class="primary" onclick="captureTrafficNow()">ثبت نقطه فعلی</button></div><div class="stats"><article>مصرف کل<strong id="tv">0 GB</strong></article><article>نقاط ثبت‌شده<strong id="traffic-points">0</strong></article><article>بازه<strong>۲۴ ساعت</strong></article><article>Snapshot<strong id="traffic-last">—</strong></article></div><div class="panel traffic-chart-panel"><div class="panel-title"><div><span class="eyebrow">REAL HISTORY</span><h3>روند مصرف ۲۴ ساعت گذشته</h3></div></div><div id="traffic-chart" class="traffic-chart"></div></div><div class="panel"><div class="table-wrap" id="traffic-history-list"></div></div></section>
+<section id="traffic-page" class="page hidden"><div class="head"><div><small>TRAFFIC ANALYTICS</small><h1>ترافیک و مصرف</h1><p>تاریخچه واقعی مصرف ثبت‌شده توسط ALPHA</p></div><div class="head-actions"><select id="traffic-range" onchange="loadTrafficHistory()"><option value="24">۲۴ ساعت</option><option value="72">۳ روز</option><option value="168">۷ روز</option></select><button class="primary" onclick="captureTrafficNow()">ثبت نقطه فعلی</button></div></div><div class="stats"><article>مصرف فعلی<strong id="tv">0 GB</strong></article><article>نقاط ثبت‌شده<strong id="traffic-points">0</strong></article><article>تغییر بازه<strong id="traffic-delta">—</strong></article><article>Snapshot<strong id="traffic-last">—</strong></article></div><div class="panel traffic-chart-panel"><div class="panel-title"><div><span class="eyebrow">REAL HISTORY</span><h3>روند مصرف ۲۴ ساعت گذشته</h3></div></div><div id="traffic-chart" class="traffic-chart"></div></div><div class="panel"><div class="table-wrap" id="traffic-history-list"></div></div></section>
 <section id="activity-page" class="page hidden"><div class="head"><h1>فعالیت‌ها</h1></div><div class="panel" id="al"></div></section>
+<section id="alpha-reports" class="view hidden alpha-reports-page">
+  <div class="section-head"><div><span class="eyebrow">REPORTS CENTER</span><h2>مرکز گزارش‌ها</h2><p class="muted" id="alpha-report-note">گزارش مدیریتی و خروجی داده‌های ALPHA</p></div><div class="head-actions"><select id="alpha-report-days" onchange="alphaLoadReports()"><option value="1">۱ روز</option><option value="7" selected>۷ روز</option><option value="30">۳۰ روز</option><option value="90">۹۰ روز</option></select><button class="ghost" onclick="alphaLoadReports()">↻ بروزرسانی</button></div></div>
+  <div id="alpha-report-kpis" class="alpha-report-kpis"></div>
+  <div class="alpha-report-grid">
+    <section class="panel-card"><div class="panel-title"><div><span class="eyebrow">EXPORT CENTER</span><h3>خروجی داده</h3></div></div><div class="report-export-list">
+      <button onclick="alphaDownloadReport('users')"><b>کاربران</b><small>فهرست کاربران، مصرف، سهمیه و انقضا</small><span>CSV ↓</span></button>
+      <button onclick="alphaDownloadReport('nodes')"><b>Nodeها</b><small>وضعیت، Endpoint، latency و آخرین مشاهده</small><span>CSV ↓</span></button>
+      <button onclick="alphaDownloadReport('traffic')"><b>ترافیک</b><small>Snapshotهای بازه انتخاب‌شده</small><span>CSV ↓</span></button>
+      <button onclick="alphaDownloadReport('activity')"><b>Audit / Activity</b><small>رویدادهای مدیریتی بازه انتخاب‌شده</small><span>CSV ↓</span></button>
+    </div></section>
+    <section class="panel-card"><div class="panel-title"><div><span class="eyebrow">REPORTING</span><h3>نمای مدیریتی</h3></div></div><div class="report-info"><p>این بخش برای تهیه گزارش سریع عملیات طراحی شده و داده‌ها را مستقیم از D1 می‌خواند.</p><ul><li>خروجی CSV با UTF-8 و سازگار با Excel</li><li>بازه فعالیت و ترافیک قابل انتخاب است</li><li>گزارش شامل داده‌های خام مدیریتی است</li></ul></div></section>
+  </div>
+</section>
+
 <section id="settings-page" class="page hidden"><div class="head"><h1>تنظیمات</h1></div><div class="panel settings"><p>برند <b>ALPHA</b></p><p>کانال <b>@V2rayTun0</b></p><p>سازنده <b>@Mehtif</b></p><p>نسخه <b>2.0.0</b></p></div></section>
 
 <section id="subscription-center" class="view hidden">
@@ -165,6 +199,7 @@
       <option value="active">فعال</option>
       <option value="suspended">معلق</option>
       <option value="expired">منقضی</option>
+      <option value="disabled">غیرفعال</option>
     </select>
     <select id="alpha-sub-sort">
       <option value="created_at">جدیدترین</option>
@@ -175,7 +210,9 @@
   </div>
 
   <div id="alpha-sub-stats" class="alpha-sub-stats"></div>
+  <div id="alpha-sub-bulk" class="alpha-bulk-bar hidden"><div><b id="alpha-sub-selected-count">0 انتخاب</b><span>اشتراک انتخاب شده</span></div><div><button class="ghost" onclick="alphaBulkSubscription('activate')">فعال‌سازی</button><button class="ghost" onclick="alphaBulkSubscription('suspend')">تعلیق</button><button class="danger" onclick="alphaBulkSubscription('delete')">حذف</button></div></div>
   <div id="alpha-sub-list" class="table-wrap"></div>
+  <div class="alpha-list-meta"><span id="alpha-sub-range">—</span><div><button class="ghost small" onclick="alphaChangeSubPage(-1)">‹ قبلی</button><button class="ghost small" onclick="alphaChangeSubPage(1)">بعدی ›</button></div></div>
 </section>
 
 
@@ -189,6 +226,7 @@
   </div>
 
   <div id="alpha-security-status" class="alpha-security-grid"></div>
+  <div id="alpha-security-overview" class="alpha-security-overview"></div>
 
   <div class="alpha-security-panels">
     <div class="panel-card">
@@ -196,7 +234,7 @@
         <button class="ghost small" onclick="alphaLoadAudit()">↻</button>
       </div>
       <div class="alpha-audit-toolbar">
-        <input id="alpha-audit-search" placeholder="جستجوی action، actor یا details">
+        <div class="alpha-audit-filters"><input id="alpha-audit-search" placeholder="جستجوی action، actor یا details"><select id="alpha-audit-action"><option value="">همه Actionها</option></select><select id="alpha-audit-limit"><option value="50">50</option><option value="100" selected>100</option><option value="150">150</option></select></div>
       </div>
       <div id="alpha-audit-list" class="table-wrap"></div>
     </div>
@@ -206,7 +244,9 @@
       <p class="muted">Backup شامل داده‌های مدیریتی D1 است. فایل خروجی را خارج از Worker و در محل امن نگهداری کن.</p>
       <div class="backup-actions">
         <button class="primary" onclick="alphaBackupDownload()">دریافت Backup JSON</button>
+        <button class="ghost" onclick="alphaBackupPreview()">بررسی Backup</button>
       </div>
+      <div id="alpha-backup-info" class="backup-info"></div>
       <div class="security-note">توکن‌های Cloudflare و Secretهای Worker در Backup قرار نمی‌گیرند.</div>
     </div>
   </div>
@@ -215,8 +255,11 @@
 <section id="alpha-production" class="view hidden">
 <div class="section-head"><div><span class="eyebrow">PRODUCTION</span><h2>ALPHA Production Center</h2></div><button class="primary" onclick="alphaProductionCheck()">بررسی سیستم</button></div>
 <div id="alpha-prod-grid" class="alpha-prod-grid"></div>
+<div class="alpha-prod-card diagnostics-card"><div><span class="eyebrow">DIAGNOSTICS</span><h3>بررسی سلامت سیستم</h3><p class="muted">وضعیت D1، جدول‌های اصلی، Sessionها و Snapshotهای عملیاتی را یکجا بررسی کن.</p></div><button class="ghost" onclick="alphaRunDiagnostics()">اجرای Diagnostics</button></div>
+<div id="alpha-diagnostics" class="alpha-diagnostics"></div>
+<div class="alpha-prod-card"><div><span class="eyebrow">SESSION SECURITY</span><h3>مدیریت Session</h3><p class="muted" id="alpha-session-info">در حال دریافت وضعیت...</p></div><button class="danger" onclick="alphaRevokeSessions()">خروج از همه Sessionها</button></div>
 <div class="alpha-prod-card"><div><span class="eyebrow">PWA</span><h3>نصب ALPHA روی دستگاه</h3><p class="muted">اگر مرورگر از نصب PWA پشتیبانی کند، ALPHA می‌تواند مانند یک اپ مستقل اجرا شود.</p></div><button class="ghost" onclick="alphaInstallPWA()">Install ALPHA</button></div>
-<div class="alpha-prod-card"><div><span class="eyebrow">VERSION</span><h3>ALPHA v6.0</h3><p class="muted">Production-ready UI, PWA shell, health checks and deployment guidance.</p></div><span class="badge active">READY</span></div>
+<div class="alpha-prod-card"><div><span class="eyebrow">VERSION</span><h3>ALPHA v6.8.0</h3><p class="muted">Production security center, session controls, authentication monitoring and audit visibility.</p></div><span class="badge active">READY</span></div>
 </section>
 <section id="alpha-settings-center" class="view hidden">
   <div class="section-head">
@@ -273,4 +316,5 @@
 <div id="sub-modal" class="modal hidden"><div class="modal-card"><button class="modal-close" onclick="closeModal('sub-modal')">×</button><h3>ساخت اشتراک</h3><input id="s-user" placeholder="Username"><input id="s-quota" type="number" placeholder="Quota GB" value="10"><input id="s-devices" type="number" placeholder="Device limit" value="2"><select id="s-protocol"><option>VLESS</option><option>Trojan</option></select><button class="primary wide" onclick="saveSub()">ساخت اشتراک</button></div></div>
 
 <div id="user-detail-modal" class="modal hidden"><div class="modal-card user-detail-card"><button class="modal-close" onclick="closeModal('user-detail-modal')">×</button><div id="user-detail-content"></div></div></div>
+<div id="subscription-node-modal" class="modal hidden"><div class="modal-card subscription-node-card"><button class="modal-close" onclick="closeModal('subscription-node-modal')">×</button><div id="subscription-node-content"></div></div></div>
 </body></html>

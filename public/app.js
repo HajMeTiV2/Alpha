@@ -24,9 +24,10 @@ async function dash(){
     api("/api/nodes"),
     api("/api/activity"),
     api("/api/traffic/history?hours=24"),
-    api("/api/settings/health")
+    api("/api/settings/health"),
+    api("/api/notifications/sync",{method:"POST"})
   ]);
-  const [rd,ru,rn,ra,rt,rh]=results;
+  const [rd,ru,rn,ra,rt,rh,rnotif]=results;
   if(rd.status!=="fulfilled"){
     console.error("dashboard api",rd.reason);
     if($("dash-last-sync")) $("dash-last-sync").textContent="خطا در دریافت آمار اصلی";
@@ -38,6 +39,8 @@ async function dash(){
   const acts=ra.status==="fulfilled" && Array.isArray(ra.value)?ra.value:[];
   const traffic=rt.status==="fulfilled"?rt.value:{items:[],current_used_gb:Number(d.trafficGb||0)};
   const health=rh.status==="fulfilled"?rh.value:{checks:[]};
+  if(rnotif.status!=="fulfilled") console.warn("notification sync",rnotif.reason);
+  alphaLoadNotifications().catch(()=>{});
   $("users").textContent=d.users??users.length;
   $("active").textContent=d.activeUsers??users.filter(x=>x.status==="active").length;
   $("nodes").textContent=d.nodes??nodes.length;
@@ -54,16 +57,51 @@ async function dash(){
   renderDashNodes(nodes);
   renderDashActivity(acts);
   renderDashHealth(health,nodes);
+  alphaRenderIntelligence({users,nodes,traffic});
   alphaLoadOperations();
   if(rt.status!=="fulfilled") console.warn("traffic history unavailable",rt.reason);
   if(rh.status!=="fulfilled") console.warn("health unavailable",rh.reason);
 }
+
+function alphaFmtGB(v){const n=Number(v||0);return n>=100?n.toFixed(0):n.toFixed(1)}
+function alphaDaysUntil(v){const t=parseExpiry(v);return t?Math.ceil((t-Date.now())/86400000):null}
+function alphaRenderIntelligence(data={}){
+  const users=data.users||[], nodes=data.nodes||[], items=data.traffic?.items||[];
+  const total=users.length, active=users.filter(u=>u.status==='active').length;
+  const activeRate=total?Math.round(active/total*100):0;
+  const traffic=users.reduce((n,u)=>n+Number(u.used_gb||0),0);
+  const avg=total?traffic/total:0;
+  const quotaRisk=users.filter(u=>Number(u.quota_gb)>0 && Number(u.used_gb)/Number(u.quota_gb)>=.8 && u.status==='active');
+  const expiring=users.filter(u=>{const d=alphaDaysUntil(u.expires_at);return d!==null&&d>=0&&d<=7&&u.status==='active'});
+  let trend='—';
+  if(items.length>=2){const first=Number(items[0].total_used_gb||0),last=Number(items.at(-1).total_used_gb||0);const delta=last-first;trend=(delta>=0?'+':'')+alphaFmtGB(delta)+' GB';}
+  const k=$('alpha-intelligence-kpis');
+  if(k)k.innerHTML=`<div class="intel-card"><span>نرخ فعال‌بودن</span><b>${activeRate}%</b><small>${active} از ${total} کاربر</small></div><div class="intel-card"><span>میانگین مصرف</span><b>${alphaFmtGB(avg)} GB</b><small>برای هر کاربر</small></div><div class="intel-card"><span>ریسک Quota</span><b>${quotaRisk.length}</b><small>کاربر با مصرف بالای ۸۰٪</small></div><div class="intel-card"><span>انقضای ۷ روزه</span><b>${expiring.length}</b><small>نیازمند پیگیری</small></div><div class="intel-card"><span>روند ترافیک</span><b>${esc(trend)}</b><small>${items.length?`${items.length} Snapshot`:'داده کافی نیست'}</small></div>`;
+  const forecast=$('alpha-expiry-forecast');
+  const buckets=[0,1,3,7].map(max=>users.filter(u=>{const d=alphaDaysUntil(u.expires_at);return d!==null&&d>=0&&d<=max}).length);
+  if(forecast)forecast.innerHTML=`<div class="intel-row"><span>تا ۲۴ ساعت</span><b>${buckets[0]}</b></div><div class="intel-row"><span>تا ۳ روز</span><b>${buckets[1]}</b></div><div class="intel-row"><span>تا ۷ روز</span><b>${buckets[2]}</b></div><div class="intel-row"><span>بدون تاریخ انقضا</span><b>${users.filter(u=>!parseExpiry(u.expires_at)).length}</b></div>`;
+  const risk=$('alpha-risk-list');
+  const offline=nodes.filter(n=>n.status!=='online'&&n.status!=='active');
+  const noQuota=users.filter(u=>Number(u.quota_gb)>0&&Number(u.used_gb)>=Number(u.quota_gb)&&u.status==='active');
+  const suspended=users.filter(u=>u.status==='suspended');
+  const rows=[];
+  if(quotaRisk.length)rows.push(`<button onclick="alphaOpenView('users')"><span>Quota نزدیک به سقف</span><b>${quotaRisk.length}</b></button>`);
+  if(noQuota.length)rows.push(`<button onclick="alphaOpenView('users')"><span>Quota مصرف‌شده</span><b>${noQuota.length}</b></button>`);
+  if(expiring.length)rows.push(`<button onclick="alphaOpenView('users')"><span>انقضای نزدیک</span><b>${expiring.length}</b></button>`);
+  if(offline.length)rows.push(`<button onclick="alphaOpenView('nodes')"><span>Node نیازمند بررسی</span><b>${offline.length}</b></button>`);
+  if(suspended.length)rows.push(`<button onclick="alphaOpenView('users')"><span>کاربر معلق</span><b>${suspended.length}</b></button>`);
+  if(!rows.length)rows.push('<div class="intel-good">✓ ریسک شاخصی بر اساس داده فعلی شناسایی نشد.</div>');
+  if(risk)risk.innerHTML=rows.join('');
+}
+
 async function alphaRefreshDashboard(){await dash()}
 
 const alphaCommands = [
   {label:"داشبورد", hint:"نمای کلی و عملیات", icon:"⌂", action:()=>alphaOpenView("dashboard")},
   {label:"مدیریت کاربران", hint:"جستجو، سهمیه و وضعیت", icon:"♙", action:()=>alphaOpenView("users")},
   {label:"نودها", hint:"وضعیت، latency و مانیتورینگ", icon:"◇", action:()=>alphaOpenView("nodes")},
+  {label:"گزارش‌ها", hint:"گزارش مدیریتی و Export CSV", icon:"▤", action:()=>alphaOpenView("reports")},
+  {label:"Diagnostics", hint:"بررسی سلامت سیستم", icon:"✓", action:()=>{alphaOpenView("production");alphaRunDiagnostics()}},
   {label:"اشتراک‌ها", hint:"مدیریت و تمدید", icon:"▣", action:()=>alphaOpenView("subscriptions")},
   {label:"ترافیک", hint:"تاریخچه مصرف", icon:"◫", action:()=>alphaOpenView("traffic")},
   {label:"فعالیت و Audit", hint:"رویدادهای مدیریتی", icon:"◌", action:()=>alphaOpenView("activity")},
@@ -163,12 +201,18 @@ function renderDashActivity(acts){
   box.innerHTML=rows.length?rows.map(x=>`<div class="dash-activity-row"><span class="activity-icon">•</span><div><b>${esc(x.action||"activity")}</b><small>${esc(x.details||"بدون جزئیات")}</small></div><time>${esc(formatDateTime(x.created_at))}</time></div>`).join(""):'<div class="dash-empty">فعالیتی ثبت نشده است.</div>';
 }
 function renderDashHealth(h,nodes){
-  const checks=h?.checks||[];const ok=checks.length?checks.filter(x=>x.ok).length:3;const total=checks.length||3;const pct=Math.round(ok/total*100);
-  if($("dash-health-ring"))$("dash-health-ring").textContent=pct+"%";
-  if($("health-time"))$("health-time").textContent=new Date().toLocaleTimeString("fa-IR",{hour:"2-digit",minute:"2-digit"});
-  const pwa=('serviceWorker' in navigator)?'Ready':'Unavailable';if($("health-pwa"))$("health-pwa").textContent=pwa;
-  const nodeOnline=nodes.some(x=>x.status==='online'); if($("health-worker"))$("health-worker").textContent='Online';if($("health-db"))$("health-db").textContent='Connected';if($("health-auth"))$("health-auth").textContent='Protected';
-}async function loadUsers(){us=await api("/api/users");renderUsers()}
+  const checks=h?.checks||[];const ok=checks.length?checks.filter(x=>x.ok).length:0;const total=checks.length||1;
+  const nodeTotal=nodes.length, nodeOnline=nodes.filter(x=>x.status==='online').length;
+  const pct=Math.round(((ok/total)*0.75+(nodeTotal?nodeOnline/nodeTotal:1)*0.25)*100);
+  if($('dash-health-ring'))$('dash-health-ring').textContent=pct+'%';
+  if($('health-time'))$('health-time').textContent=new Date().toLocaleTimeString('fa-IR',{hour:'2-digit',minute:'2-digit'});
+  const find=k=>checks.find(x=>x.key===k);
+  if($('health-pwa'))$('health-pwa').textContent=('serviceWorker' in navigator)?'Ready':'Unavailable';
+  if($('health-worker'))$('health-worker').textContent='Online';
+  if($('health-db'))$('health-db').textContent=find('d1')?.ok?'Connected':'Check';
+  if($('health-auth'))$('health-auth').textContent=find('admin_auth')?.ok?'Protected':'Check';
+}
+async function loadUsers(){us=await api("/api/users");renderUsers()}
 function renderUsers(){let q=($("search").value||"").toLowerCase();$("ut").innerHTML=us.filter(x=>x.username.toLowerCase().includes(q)).map(x=>`<tr><td>${esc(x.username)}</td><td>${esc(x.protocol)}</td><td>${esc(x.country)}</td><td>${x.used_gb}/${x.quota_gb} GB</td><td>${esc(x.status)}</td><td><button onclick="profile(${x.id})">جزئیات</button> <button onclick="toggle(${x.id},'${x.status==="active"?"disabled":"active"}')">${x.status==="active"?"غیرفعال":"فعال"}</button> <button onclick="del(${x.id})">حذف</button></td></tr>`).join("")||"<tr><td colspan=6>کاربری وجود ندارد</td></tr>"}
 async function toggle(id,s){await api("/api/users/"+id,{method:"PATCH",body:JSON.stringify({status:s})});loadUsers()}
 async function del(id){if(confirm("حذف شود؟")){await api("/api/users/"+id,{method:"DELETE"});loadUsers()}}
@@ -186,23 +230,39 @@ async function removeSub(id){if(!confirm("حذف این اشتراک؟"))return;
 async function activity(){let x=await api("/api/activity");$("al").innerHTML=x.map(n=>`<p>${esc(n.action)} — ${esc(n.details||"")} <small>${esc(n.created_at)}</small></p>`).join("")||"فعالیتی ثبت نشده است."}
 function closeModal(id){$(id).classList.add("hidden")}
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]))}
-function alphaTarget(p){return ({dashboard:"dashboard",users:"users-page",nodes:"nodes-page",subscriptions:"subscription-center",traffic:"traffic-page",activity:"activity-page",security:"security-center",production:"alpha-production",settings:"alpha-settings-center",appearance:"alpha-ui-center"})[p]||"dashboard"}
-function alphaOpenView(p){document.querySelectorAll(".page,.view").forEach(x=>x.classList.add("hidden"));const el=$(alphaTarget(p));if(el)el.classList.remove("hidden");document.querySelectorAll("nav button[data-p]").forEach(x=>x.classList.toggle("active",x.dataset.p===p));if(p==="dashboard")dash();if(p==="users")loadProUsers();if(p==="nodes")loadNodeMonitor();if(p==="subscriptions")alphaLoadSubscriptions();if(p==="traffic")loadTrafficHistory();if(p==="activity")activity();if(p==="security"){alphaSecurityCheck();alphaLoadAudit();}if(p==="production")alphaProductionCheck();if(p==="settings")alphaRefreshControlCenter();if(p==="appearance")alphaLoadUISettings();}
+function alphaToast(message,type="info"){
+  let box=document.getElementById("alpha-toast-stack");
+  if(!box){box=document.createElement("div");box.id="alpha-toast-stack";box.className="alpha-toast-stack";document.body.appendChild(box)}
+  const item=document.createElement("div");item.className=`alpha-toast ${type}`;item.textContent=message;box.appendChild(item);
+  requestAnimationFrame(()=>item.classList.add("show"));
+  setTimeout(()=>{item.classList.remove("show");setTimeout(()=>item.remove(),220)},3200);
+}
+function alphaTarget(p){return ({dashboard:"dashboard",users:"users-page",nodes:"nodes-page",subscriptions:"subscription-center",traffic:"traffic-page",activity:"activity-page",security:"security-center",production:"alpha-production",settings:"alpha-settings-center",appearance:"alpha-ui-center",reports:"alpha-reports"})[p]||"dashboard"}
+function alphaOpenView(p){document.querySelectorAll(".page,.view").forEach(x=>x.classList.add("hidden"));const el=$(alphaTarget(p));if(el)el.classList.remove("hidden");document.querySelectorAll("nav button[data-p]").forEach(x=>x.classList.toggle("active",x.dataset.p===p));if(p==="dashboard")dash();if(p==="users")loadProUsers();if(p==="nodes")loadNodeMonitor();if(p==="subscriptions")alphaLoadSubscriptions();if(p==="traffic")loadTrafficHistory();if(p==="activity")activity();if(p==="security"){alphaSecurityCheck();alphaLoadAudit();alphaLoadSecurityOverview();}if(p==="production"){alphaProductionCheck();alphaLoadSessionInfo();}if(p==="settings")alphaRefreshControlCenter();if(p==="appearance")alphaLoadUISettings();if(p==="reports")alphaLoadReports();}
 document.querySelectorAll("nav button[data-p]").forEach(b=>b.onclick=()=>alphaOpenView(b.dataset.p));
 function toggleSidebar(){document.getElementById("alpha-sidebar")?.classList.toggle("collapsed");document.getElementById("app")?.classList.toggle("sidebar-collapsed");}
 
+async function alphaRunDiagnostics(){
+  const box=$("alpha-diagnostics"); if(!box)return;
+  box.innerHTML='<div class="diag-loading">در حال بررسی سلامت سیستم…</div>';
+  try{const d=await api("/api/system/diagnostics");box.innerHTML=(d.checks||[]).map(c=>`<div class="diag-row ${c.status==='ok'?'ok':'error'}"><span>${c.status==='ok'?'✓':'!'}</span><b>${esc(c.name)}</b><small>${esc(c.value)}</small></div>`).join('')+`<div class="diag-footer">آخرین بررسی: ${new Date(d.checked_at).toLocaleString('fa-IR')} · ${d.ok?'سیستم سالم':'نیازمند بررسی'}</div>`;alphaToast(d.ok?'بررسی سیستم با موفقیت انجام شد':'برخی بررسی‌ها نیاز به توجه دارند',d.ok?'success':'warning');}catch(e){box.innerHTML=`<div class="diag-row error"><span>!</span><b>Diagnostics</b><small>${esc(e.message)}</small></div>`;alphaToast(e.message,'error')}}
+async function alphaLoadSessionInfo(){const el=$("alpha-session-info");if(!el)return;try{const d=await api("/api/auth/session");if(!d.authenticated){el.textContent='Session فعال پیدا نشد.';return}el.textContent=`Session فعلی تا ${new Date(d.expires_at).toLocaleString('fa-IR')} معتبر است · ${d.active_sessions} Session فعال`;}catch(e){el.textContent='دریافت وضعیت Session ناموفق بود.'}}
+async function alphaRevokeSessions(){if(!confirm('همه Sessionهای مدیریتی خارج شوند؟'))return;try{await api('/api/auth/sessions/revoke-all',{method:'POST'});location.reload()}catch(e){alphaToast(e.message,'error')}}
+
 async function boot(){try{await api("/api/dashboard");$("login").classList.add("hidden");$("app").classList.remove("hidden");alphaOpenView("dashboard");}catch{try{await api("/api/health");show("login")}catch{$("login").classList.remove("hidden")}}}
 boot()
+setInterval(()=>{const app=$("app"),dashPage=$("dashboard");if(app&&!app.classList.contains("hidden")&&dashPage&&!dashPage.classList.contains("hidden"))dash().catch(()=>{})},30000);
 
-async function loadTrafficHistory(){try{const d=await api("/api/traffic/history?hours=24");const items=d.items||[];$("tv").textContent=Number(d.current_used_gb||0).toFixed(2)+" GB";if($("traffic-points"))$("traffic-points").textContent=items.length;if($("traffic-last"))$("traffic-last").textContent=items.length?new Date(items[items.length-1].captured_at).toLocaleTimeString("fa-IR",{hour:"2-digit",minute:"2-digit"}):"—";const chart=$("traffic-chart");if(chart){if(!items.length){chart.innerHTML='<div class="chart-empty">هنوز snapshot ساعتی ثبت نشده است. اولین snapshot با Cron یا دکمه «ثبت نقطه فعلی» ایجاد می‌شود.</div>';}else{const max=Math.max(...items.map(x=>Number(x.total_used_gb||0)),1);chart.innerHTML=items.map(x=>`<div class="chart-bar" title="${new Date(x.captured_at).toLocaleString("fa-IR")}"><i style="height:${Math.max(6,Number(x.total_used_gb||0)/max*100)}%"></i><small>${new Date(x.captured_at).toLocaleTimeString("fa-IR",{hour:"2-digit"})}</small></div>`).join("");}}const list=$("traffic-history-list");if(list)list.innerHTML=`<table><thead><tr><th>زمان</th><th>مصرف کل</th><th>کاربران</th><th>فعال</th></tr></thead><tbody>${items.slice().reverse().map(x=>`<tr><td>${new Date(x.captured_at).toLocaleString("fa-IR")}</td><td>${Number(x.total_used_gb||0).toFixed(2)} GB</td><td>${x.users_count}</td><td>${x.active_users_count}</td></tr>`).join("")||'<tr><td colspan="4">داده‌ای ثبت نشده است.</td></tr>'}</tbody></table>`;}catch(e){console.error(e)}}
-async function captureTrafficNow(){try{await api("/api/traffic/snapshot",{method:"POST"});await loadTrafficHistory();}catch(e){alert(e.message)}}
+async function loadTrafficHistory(){try{const hours=Number($("traffic-range")?.value||24);const d=await api(`/api/traffic/history?hours=${hours}`);const items=d.items||[];$('tv').textContent=Number(d.current_used_gb||0).toFixed(2)+" GB";$('traffic-points').textContent=items.length;$('traffic-last').textContent=items.length?new Date(items[items.length-1].captured_at).toLocaleTimeString("fa-IR",{hour:"2-digit",minute:"2-digit"}):"—";const first=items[0]?.total_used_gb,last=items.at(-1)?.total_used_gb;const delta=first!=null&&last!=null?Number(last)-Number(first):null;const td=$("traffic-delta");if(td)td.textContent=delta==null?"—":`${delta>=0?"+":""}${delta.toFixed(2)} GB`;const chart=$("traffic-chart");if(chart){if(!items.length){chart.innerHTML='<div class="chart-empty">هنوز Snapshot در این بازه ثبت نشده است.</div>';}else{const max=Math.max(...items.map(x=>Number(x.total_used_gb||0)),1);chart.innerHTML=items.map(x=>`<div class="chart-bar" title="${new Date(x.captured_at).toLocaleString("fa-IR")}"><i style="height:${Math.max(6,Number(x.total_used_gb||0)/max*100)}%"></i><small>${new Date(x.captured_at).toLocaleTimeString("fa-IR",{hour:"2-digit"})}</small></div>`).join("");}}const list=$("traffic-history-list");if(list)list.innerHTML=`<table><thead><tr><th>زمان</th><th>مصرف کل</th><th>کاربران</th><th>فعال</th></tr></thead><tbody>${items.slice().reverse().map(x=>`<tr><td>${new Date(x.captured_at).toLocaleString("fa-IR")}</td><td>${Number(x.total_used_gb||0).toFixed(2)} GB</td><td>${x.users_count}</td><td>${x.active_users_count}</td></tr>`).join("")||'<tr><td colspan="4">داده‌ای ثبت نشده است.</td></tr>'}</tbody></table>`;}catch(e){console.error(e);alphaToast(e.message||"خطا در دریافت ترافیک","error")}}
+async function captureTrafficNow(){try{await api("/api/traffic/snapshot",{method:"POST"});await loadTrafficHistory();alphaToast("Snapshot ترافیک ثبت شد","success")}catch(e){alphaToast(e.message,"error")}}
 
-let proUsers=[], selectedUsers=new Set(), userSearchTimer;
+let proUsers=[], selectedUsers=new Set(), userSearchTimer, userPage=1, userPageSize=25;
 function debouncedUsers(){clearTimeout(userSearchTimer);userSearchTimer=setTimeout(loadProUsers,250)}
 async function loadProUsers(){
-  const q=encodeURIComponent($("user-search")?.value||""), st=encodeURIComponent($("user-status")?.value||""), sort=encodeURIComponent($("user-sort")?.value||"created_at");
+  const q=encodeURIComponent($("user-search")?.value||""), st=encodeURIComponent($("user-status")?.value||""), country=encodeURIComponent($("user-country")?.value||""), sort=encodeURIComponent($("user-sort")?.value||"created_at");
+  userPage=1;
   try {
-    const r=await api(`/api/users/advanced?q=${q}&status=${st}&sort=${sort}`);
+    const r=await api(`/api/users/advanced?q=${q}&status=${st}&country=${country}&sort=${sort}`);
     proUsers=r.items||[];
     renderProUsers();
     updateUsersPageStats(r.stats||null);
@@ -223,6 +283,7 @@ function updateUsersPageStats(stats){
   if($("u-traffic"))$("u-traffic").textContent=traffic.toFixed(1)+" GB";
   if($("u-expiring"))$("u-expiring").textContent=expiring;
   if($("users-result-count"))$("users-result-count").textContent=`${proUsers.length} کاربر`;
+  const countryEl=$("user-country"); if(countryEl){const current=countryEl.value; const countries=[...new Set(proUsers.map(u=>u.country).filter(Boolean))].sort(); countryEl.innerHTML=`<option value="">همه کشورها</option>`+countries.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join(""); countryEl.value=current;}
 }
 function parseExpiry(v){
   if(v===null||v===undefined||v==="")return 0;
@@ -232,38 +293,54 @@ function parseExpiry(v){
 
 function renderProUsers(){
   const el=$("pro-users-list"); if(!el)return;
-  el.innerHTML=`<table><thead><tr><th><input type="checkbox" onchange="toggleAllUsers(this.checked)"></th><th>کاربر</th><th>Protocol</th><th>Quota</th><th>مصرف</th><th>دستگاه</th><th>انقضا</th><th>وضعیت</th><th>عملیات</th></tr></thead><tbody>${proUsers.map(u=>{
+  const totalPages=Math.max(1,Math.ceil(proUsers.length/userPageSize)); userPage=Math.min(userPage,totalPages);
+  const start=(userPage-1)*userPageSize, rows=proUsers.slice(start,start+userPageSize);
+  el.innerHTML=`<table><thead><tr><th><input type="checkbox" ${rows.length&&rows.every(u=>selectedUsers.has(u.id))?'checked':''} onchange="toggleVisibleUsers(this.checked)"></th><th>کاربر</th><th>Protocol</th><th>Quota</th><th>مصرف</th><th>دستگاه</th><th>انقضا</th><th>وضعیت</th><th>عملیات</th></tr></thead><tbody>${rows.map(u=>{
     const pct=u.quota_gb?Math.min(100,(Number(u.used_gb)/Number(u.quota_gb))*100):0;
     return `<tr><td><input type="checkbox" ${selectedUsers.has(u.id)?"checked":""} onchange="toggleUser('${u.id}',this.checked)"></td>
-    <td><button class="link-btn" onclick="showUserDetail('${u.id}')">${esc(u.username)}</button><small class="muted">${esc(u.country||"—")}</small></td>
-    <td>${esc(u.protocol)}</td><td>${u.quota_gb} GB</td><td><div class="usage-cell"><span>${u.used_gb} GB</span><i><b style="width:${pct}%"></b></i></div></td>
-    <td>${u.device_limit}</td><td>${formatDate(u.expires_at)}</td><td><span class="badge ${u.status}">${esc(u.status)}</span></td>
-    <td><button class="ghost small" onclick="showUserDetail('${u.id}')">جزئیات</button></td></tr>`}).join("")}</tbody></table>`;
+    <td><button class="link-btn" onclick="showUserDetail('${u.id}')">${esc(u.username)}</button><small class="muted">${esc(u.country||"—")} · ${esc(u.protocol||"—")}</small></td>
+    <td>${esc(u.protocol||"—")}</td><td>${Number(u.quota_gb||0)} GB</td><td><div class="usage-cell"><span>${Number(u.used_gb||0).toFixed(1)} GB</span><i><b style="width:${pct}%"></b></i></div></td>
+    <td>${u.device_limit}</td><td>${formatDate(u.expires_at)}</td><td><span class="badge ${esc(u.status||"")}">${esc(u.status||"—")}</span></td>
+    <td><button class="ghost small" onclick="showUserDetail('${u.id}')">جزئیات</button></td></tr>`}).join("")||'<tr><td colspan="9"><div class="empty-state">کاربری با این فیلتر پیدا نشد.</div></td></tr>'}</tbody></table>`;
   updateBulkBar();
+  const range=$("user-page-range"); if(range)range.textContent=proUsers.length?`${start+1} تا ${Math.min(start+userPageSize,proUsers.length)} از ${proUsers.length}`:"۰ کاربر";
 }
+function changeUserPage(delta){const pages=Math.max(1,Math.ceil(proUsers.length/userPageSize));userPage=Math.max(1,Math.min(pages,userPage+delta));renderProUsers()}
+function toggleVisibleUsers(on){const totalPages=Math.max(1,Math.ceil(proUsers.length/userPageSize));userPage=Math.min(userPage,totalPages);const start=(userPage-1)*userPageSize;proUsers.slice(start,start+userPageSize).forEach(u=>on?selectedUsers.add(u.id):selectedUsers.delete(u.id));renderProUsers()}
 function toggleUser(id,on){on?selectedUsers.add(id):selectedUsers.delete(id);updateBulkBar()}
 function toggleAllUsers(on){proUsers.forEach(u=>on?selectedUsers.add(u.id):selectedUsers.delete(u.id));renderProUsers()}
 function updateBulkBar(){const b=$("bulk-bar"); if(!b)return;b.classList.toggle("hidden",selectedUsers.size===0);$("selected-count").textContent=`${selectedUsers.size} انتخاب`}
 async function bulkUserAction(action){const ids=[...selectedUsers];if(!ids.length)return;if(action==="delete"&&!confirm("کاربران انتخاب‌شده حذف شوند؟"))return;await api("/api/users/bulk",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({ids,action})});selectedUsers.clear();await loadProUsers()}
 async function showUserDetail(id){
-  const u=proUsers.find(x=>x.id===id); if(!u)return;
-  const pct=u.quota_gb?Math.min(100,(Number(u.used_gb)/Number(u.quota_gb))*100):0;
-  $("user-detail-content").innerHTML=`<div class="detail-head"><div class="avatar">${esc((u.username||"?")[0].toUpperCase())}</div><div><span class="eyebrow">USER PROFILE</span><h3>${esc(u.username)}</h3><span class="muted">${esc(u.protocol)} · ${esc(u.country||"—")}</span></div></div>
-  <div class="detail-grid"><div><small>Quota</small><b>${u.quota_gb} GB</b></div><div><small>مصرف</small><b>${u.used_gb} GB</b></div><div><small>دستگاه</small><b>${u.device_limit}</b></div><div><small>انقضا</small><b>${formatDate(u.expires_at)}</b></div></div>
-  <div class="progress"><i style="width:${pct}%"></i></div>
-  <div class="detail-actions"><button class="primary" onclick="extendUser('${u.id}')">+ تمدید</button><button class="ghost" onclick="editUserPrompt('${u.id}')">ویرایش</button><button class="ghost" onclick="toggleUserStatus('${u.id}','${u.status}')">${u.status==="active"?"تعلیق":"فعال‌سازی"}</button></div>`;
+  const base=proUsers.find(x=>String(x.id)===String(id)); if(!base)return;
+  const box=$("user-detail-content"); box.innerHTML='<div class="detail-loading">در حال دریافت اطلاعات کامل کاربر…</div>';
   $("user-detail-modal").classList.remove("hidden");
+  try{
+    const r=await api(`/api/users/${encodeURIComponent(id)}`),u=r.user||base;
+    const pct=u.quota_gb?Math.min(100,(Number(u.used_gb)/Number(u.quota_gb))*100):0;
+    const sub=u.subscription_token?`${location.origin}/sub/${u.subscription_token}`:"";
+    box.innerHTML=`<div class="detail-head"><div class="avatar">${esc((u.username||"?")[0].toUpperCase())}</div><div><span class="eyebrow">USER PROFILE</span><h3>${esc(u.username)}</h3><span class="muted">${esc(u.protocol||"—")} · ${esc(u.country||"—")}</span></div><span class="badge ${esc(u.status||"")} detail-status">${esc(u.status||"—")}</span></div>
+      <div class="detail-grid"><div><small>Quota</small><b>${Number(u.quota_gb||0)} GB</b></div><div><small>مصرف</small><b>${Number(u.used_gb||0).toFixed(1)} GB</b></div><div><small>دستگاه</small><b>${u.device_limit||0}</b></div><div><small>انقضا</small><b>${formatDate(u.expires_at)}</b></div></div>
+      <div class="usage-label"><span>مصرف سهمیه</span><b>${pct.toFixed(0)}%</b></div><div class="progress"><i style="width:${pct}%"></i></div>
+      <div class="detail-form"><label>Quota GB<input id="detail-quota" type="number" min="0" value="${Number(u.quota_gb||0)}"></label><label>Device limit<input id="detail-devices" type="number" min="1" value="${Number(u.device_limit||1)}"></label><label>تاریخ انقضا<input id="detail-expiry" type="datetime-local" value="${toLocalInput(u.expires_at)}"></label></div>
+      ${sub?`<label class="subscription-link-field">لینک اشتراک<input id="detail-sub-link" readonly value="${esc(sub)}"><button class="ghost" onclick="copyText('detail-sub-link')">کپی</button></label>`:""}
+      <div class="detail-actions"><button class="primary" onclick="saveUserDetail('${esc(u.id)}')">ذخیره تغییرات</button><button class="ghost" onclick="extendUser('${esc(u.id)}')">+ تمدید ۳۰ روزه</button><button class="ghost" onclick="toggleUserStatus('${esc(u.id)}','${esc(u.status)}')">${u.status==="active"?"تعلیق":"فعال‌سازی"}</button><button class="ghost" onclick="loadUserConfigs('${esc(u.id)}')">نمایش کانفیگ‌ها</button></div><div id="detail-configs" class="detail-configs hidden"></div>`;
+  }catch(e){box.innerHTML=`<div class="empty-state">خطا در دریافت اطلاعات: ${esc(e.message||"خطا")}</div>`}
 }
-async function extendUser(id){const days=prompt("چند روز تمدید شود؟","30");if(!days)return;await api(`/api/users/${id}/extend`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({days:Number(days)})});closeModal("user-detail-modal");await loadProUsers()}
-async function toggleUserStatus(id,status){await api(`/api/users/${id}`,{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({status:status==="active"?"suspended":"active"})});closeModal("user-detail-modal");await loadProUsers()}
-async function editUserPrompt(id){
- const u=proUsers.find(x=>x.id===id);if(!u)return;
- const quota=prompt("Quota (GB)",u.quota_gb), devices=prompt("Device limit",u.device_limit);
- if(quota===null||devices===null)return;
- await api(`/api/users/${id}`,{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({quota_gb:Number(quota),device_limit:Number(devices)})});
- closeModal("user-detail-modal");await loadProUsers()
+function toLocalInput(v){const t=parseExpiry(v);if(!t)return"";const d=new Date(t-Date.now()*0);const pad=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`}
+async function saveUserDetail(id){
+  const quota=Number($("detail-quota")?.value||0),devices=Number($("detail-devices")?.value||1),expiry=$("detail-expiry")?.value;
+  if(quota<0||devices<1)return alphaToast("مقادیر سهمیه و دستگاه معتبر نیستند","error");
+  const body={quota_gb:quota,device_limit:devices}; if(expiry)body.expires_at=String(new Date(expiry).getTime());
+  try{await api(`/api/users/${encodeURIComponent(id)}`,{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify(body)});alphaToast("اطلاعات کاربر ذخیره شد","success");await loadProUsers();await showUserDetail(id)}catch(e){alphaToast(e.message||"ذخیره ناموفق بود","error")}
 }
-function clearUserFilters(){if($("user-search"))$("user-search").value="";if($("user-status"))$("user-status").value="";if($("user-sort"))$("user-sort").value="created_at";loadProUsers()}
+async function loadUserConfigs(id){
+  const box=$("detail-configs");if(!box)return;box.classList.remove("hidden");box.textContent="در حال دریافت کانفیگ‌ها…";
+  try{const u=await api(`/api/users/${encodeURIComponent(id)}`),token=u.user?.subscription_token;if(!token){box.textContent="لینک اشتراک موجود نیست.";return}const r=await fetch(`${location.origin}/sub/${encodeURIComponent(token)}`);const data=await r.json();box.innerHTML=(data.configs||[]).length?`<pre>${esc((data.configs||[]).join("\n"))}</pre>`:'<span class="muted">کانفیگ فعالی برای این کاربر وجود ندارد.</span>'}catch(e){box.textContent="دریافت کانفیگ ناموفق بود."}
+}
+async function extendUser(id){const days=prompt("چند روز تمدید شود؟","30");if(!days)return;try{await api(`/api/users/${id}/extend`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({days:Number(days)})});alphaToast("اشتراک کاربر تمدید شد","success");await loadProUsers();await showUserDetail(id)}catch(e){alphaToast(e.message,"error")}}
+async function toggleUserStatus(id,status){try{await api(`/api/users/${id}`,{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({status:status==="active"?"suspended":"active"})});alphaToast("وضعیت کاربر بروزرسانی شد","success");await loadProUsers();await showUserDetail(id)}catch(e){alphaToast(e.message,"error")}}
+function clearUserFilters(){if($("user-search"))$("user-search").value="";if($("user-status"))$("user-status").value="";if($("user-country"))$("user-country").value="";if($("user-sort"))$("user-sort").value="created_at";selectedUsers.clear();loadProUsers()}
 function formatDate(v){const t=parseExpiry(v);if(!t)return"—";const d=new Date(t);return isNaN(d)?"—":d.toLocaleDateString("fa-IR")}
 function exportUsersCSV(){
  const rows=[["username","protocol","country","quota_gb","used_gb","device_limit","status","expires_at"],...proUsers.map(u=>[u.username,u.protocol,u.country,u.quota_gb,u.used_gb,u.device_limit,u.status,u.expires_at])];
@@ -278,129 +355,53 @@ async function loadNodeMonitor(){
   const [r,s]=await Promise.all([api("/api/nodes"),api("/api/nodes/stats")]);
   const el=$("nodes-monitor-list"); if(!el)return;
   const st=$("node-stats"); if(st)st.innerHTML=`<div class="stat-card"><small>کل Nodeها</small><b>${s.total}</b></div><div class="stat-card"><small>Online</small><b class="ok-text">${s.online}</b></div><div class="stat-card"><small>Offline</small><b class="bad-text">${s.offline}</b></div><div class="stat-card"><small>میانگین Latency</small><b>${s.avg_latency_ms} ms</b></div>`;
-  el.innerHTML=(r.items||[]).map(n=>nodeCard(n)).join("");
+  el.innerHTML=(r.items||[]).map(n=>nodeCard(n)).join("")||'<div class="empty-state">Nodeای ثبت نشده است.</div>';
+  [...el.querySelectorAll('[data-node-history]')].forEach(x=>loadNodeHistory(x.dataset.nodeHistory,x));
 }
 function nodeCard(n){
- const cls=n.status==="online"?"node-online":"node-offline";
- const age=n.updated_at?formatDateTime(n.updated_at):"—";
- return `<article class="node-card ${cls}"><div class="node-card-head"><div><h3>${esc(n.name)}</h3><span class="muted">${esc(n.country||"—")} · ${esc(n.protocol)}</span></div><span class="node-status">${n.status==="online"?"● Online":"● Offline"}</span></div><div class="node-metrics"><div><small>Latency</small><b>${n.latency_ms==null?"—":n.latency_ms+" ms"}</b></div><div><small>Last Seen</small><b>${age}</b></div></div><div class="node-endpoint">${esc(n.endpoint)}</div><div class="node-actions"><button class="ghost small" onclick="checkNode('${n.id}')">Health Check</button><button class="danger small" onclick="removeNode('${n.id}')">حذف</button></div></article>`
+ const cls=n.status==="online"?"node-online":"node-offline",age=n.updated_at?formatDateTime(n.updated_at):"—";
+ return `<article class="node-card ${cls}"><div class="node-card-head"><div><h3>${esc(n.name)}</h3><span class="muted">${esc(n.country||"—")} · ${esc(n.protocol)}</span></div><span class="node-status">${n.status==="online"?"● Online":"● Offline"}</span></div><div class="node-metrics"><div><small>Latency</small><b>${n.latency_ms==null?"—":n.latency_ms+" ms"}</b></div><div><small>Last Seen</small><b>${age}</b></div><div><small>Uptime 24h</small><b data-node-history="${esc(n.id)}">در حال محاسبه…</b></div><div><small>Health Samples</small><b data-node-samples="${esc(n.id)}">—</b></div></div><div class="node-health-strip"><span style="width:0%" data-node-healthbar="${esc(n.id)}"></span></div><div class="node-endpoint">${esc(n.endpoint)}</div><div class="node-actions"><button class="ghost small" onclick="checkNode('${esc(n.id)}')">Health Check</button><button class="danger small" onclick="removeNode('${esc(n.id)}')">حذف</button></div></article>`
 }
-async function checkNode(id){await api(`/api/nodes/${id}/health`,{method:"POST"});$("node-last-check").textContent="آخرین بررسی: "+new Date().toLocaleTimeString("fa-IR");await loadNodeMonitor()}
-async function checkAllNodes(){await api("/api/nodes/monitor",{method:"POST"});$("node-last-check").textContent="آخرین بررسی: "+new Date().toLocaleTimeString("fa-IR");await loadNodeMonitor()}
+async function loadNodeHistory(id,el){try{const d=await api(`/api/nodes/${encodeURIComponent(id)}/history?hours=24`);if(d.uptime_pct==null){el.textContent="—";return}el.textContent=d.uptime_pct+"%";const sample=el.parentElement.parentElement.querySelector(`[data-node-samples="${CSS.escape(id)}"]`);if(sample)sample.textContent=(d.items||[]).length;const bar=el.closest('.node-card').querySelector(`[data-node-healthbar="${CSS.escape(id)}"]`);if(bar)bar.style.width=Math.min(100,Math.max(0,d.uptime_pct))+"%"}catch(_){el.textContent="—"}}
+async function checkNode(id){try{await api(`/api/nodes/${encodeURIComponent(id)}/health`,{method:"POST"});$("node-last-check").textContent="آخرین بررسی: "+new Date().toLocaleTimeString("fa-IR");await loadNodeMonitor();alphaToast("Health Check انجام شد","success")}catch(e){alphaToast(e.message,"error")}}
+async function checkAllNodes(){try{await api("/api/nodes/monitor",{method:"POST"});$("node-last-check").textContent="آخرین بررسی: "+new Date().toLocaleTimeString("fa-IR");await loadNodeMonitor();alphaToast("همه Nodeها بررسی شدند","success")}catch(e){alphaToast(e.message,"error")}}
 function toggleAutoNodeCheck(on){if(nodeTimer)clearInterval(nodeTimer);nodeTimer=on?setInterval(checkAllNodes,60000):null}
-async function removeNode(id){if(!confirm("این Node حذف شود؟"))return;await api("/api/nodes/"+id,{method:"DELETE"});await loadNodeMonitor()}
+async function removeNode(id){if(!confirm("این Node حذف شود؟"))return;await api("/api/nodes/"+encodeURIComponent(id),{method:"DELETE"});await loadNodeMonitor()}
 function formatDateTime(v){const d=new Date(Number(v));return isNaN(d)?"—":d.toLocaleString("fa-IR",{dateStyle:"short",timeStyle:"short"})}
 document.addEventListener("click",e=>{const b=e.target.closest("[data-view='nodes']");if(b)setTimeout(loadNodeMonitor,50)})
 
-
-/* Alpha v2.8 Subscription Center */
-let alphaSubscriptions = [];
-
-async function alphaLoadSubscriptions() {
-  const q = encodeURIComponent((document.getElementById("alpha-sub-search") || {}).value || "");
-  const status = encodeURIComponent((document.getElementById("alpha-sub-status") || {}).value || "");
-  const sort = encodeURIComponent((document.getElementById("alpha-sub-sort") || {}).value || "created_at");
-
-  try {
-    const r = await api(`/api/subscriptions/advanced?q=${q}&status=${status}&sort=${sort}`);
-    alphaSubscriptions = r.items || [];
-    alphaRenderSubscriptions();
-  } catch (e) {
-    const el = document.getElementById("alpha-sub-list");
-    if (el) el.innerHTML = `<div class="empty-state">خطا در دریافت اشتراک‌ها</div>`;
-  }
+/* ALPHA 6.1 — Subscription Center */
+let alphaSubscriptions = [], alphaSelectedSubscriptions = new Set(), alphaSubPage = 1, alphaSubPageSize = 25, alphaSubTimer = null;
+async function alphaLoadSubscriptions(){
+  clearTimeout(alphaSubTimer); alphaSubTimer=setTimeout(async()=>{
+    const q=encodeURIComponent(document.getElementById("alpha-sub-search")?.value||""),status=encodeURIComponent(document.getElementById("alpha-sub-status")?.value||""),sort=encodeURIComponent(document.getElementById("alpha-sub-sort")?.value||"created_at");
+    try{const r=await api(`/api/subscriptions/advanced?q=${q}&status=${status}&sort=${sort}`);alphaSubscriptions=r.items||[];alphaSubPage=1;alphaRenderSubscriptions()}catch(e){const el=document.getElementById("alpha-sub-list");if(el)el.innerHTML=`<div class="empty-state">${alphaEsc(e.message||"خطا در دریافت اشتراک‌ها")}</div>`}
+  },120);
 }
-
-function alphaRenderSubscriptions() {
-  const list = document.getElementById("alpha-sub-list");
-  const stats = document.getElementById("alpha-sub-stats");
-  if (!list) return;
-
-  const active = alphaSubscriptions.filter(x => x.status === "active").length;
-  const suspended = alphaSubscriptions.filter(x => x.status === "suspended").length;
-  const expiring = alphaSubscriptions.filter(x => x.days_left != null && x.days_left >= 0 && x.days_left <= 7).length;
-
-  if (stats) {
-    stats.innerHTML =
-      `<div><small>کل</small><b>${alphaSubscriptions.length}</b></div>` +
-      `<div><small>فعال</small><b>${active}</b></div>` +
-      `<div><small>معلق</small><b>${suspended}</b></div>` +
-      `<div><small>انقضای نزدیک</small><b>${expiring}</b></div>`;
-  }
-
-  if (!alphaSubscriptions.length) {
-    list.innerHTML = `<div class="empty-state">اشتراکی پیدا نشد.</div>`;
-    return;
-  }
-
-  list.innerHTML = `
-    <table>
-      <thead>
-        <tr>
-          <th>کاربر</th><th>Quota</th><th>مصرف</th><th>باقی‌مانده</th>
-          <th>انقضا</th><th>وضعیت</th><th>عملیات</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${alphaSubscriptions.map(x => `
-          <tr>
-            <td><strong>${alphaEsc(x.username)}</strong><small class="muted">${alphaEsc(x.protocol || "—")} · ${alphaEsc(x.country || "—")}</small></td>
-            <td>${Number(x.quota_gb || 0)} GB</td>
-            <td>${Number(x.used_gb || 0)} GB</td>
-            <td>${Number(x.remaining_gb || 0)} GB</td>
-            <td>${alphaExpiry(x)}</td>
-            <td><span class="badge ${alphaEsc(x.status || "")}">${alphaEsc(x.status || "—")}</span></td>
-            <td>
-              <button class="ghost small" onclick="alphaRenewSubscription('${alphaEsc(x.id)}')">تمدید</button>
-              <button class="ghost small" onclick="alphaShowNodes('${alphaEsc(x.id)}')">Nodeها</button>
-            </td>
-          </tr>`).join("")}
-      </tbody>
-    </table>`;
+function alphaRenderSubscriptions(){
+  const list=$("alpha-sub-list"),stats=$("alpha-sub-stats");if(!list)return;
+  const active=alphaSubscriptions.filter(x=>x.status==="active").length,suspended=alphaSubscriptions.filter(x=>x.status==="suspended").length,expiring=alphaSubscriptions.filter(x=>x.days_left!=null&&x.days_left>=0&&x.days_left<=7).length,totalQuota=alphaSubscriptions.reduce((n,x)=>n+Number(x.quota_gb||0),0),used=alphaSubscriptions.reduce((n,x)=>n+Number(x.used_gb||0),0);
+  if(stats)stats.innerHTML=`<div><small>کل</small><b>${alphaSubscriptions.length}</b><span>اشتراک</span></div><div><small>فعال</small><b>${active}</b><span>در حال سرویس</span></div><div><small>نزدیک انقضا</small><b>${expiring}</b><span>تا ۷ روز</span></div><div><small>مصرف</small><b>${used.toFixed(1)} GB</b><span>از ${totalQuota.toFixed(1)} GB</span></div>`;
+  if(!alphaSubscriptions.length){list.innerHTML='<div class="empty-state">اشتراکی پیدا نشد.</div>';alphaUpdateSubBulk();return}
+  const pages=Math.max(1,Math.ceil(alphaSubscriptions.length/alphaSubPageSize));alphaSubPage=Math.min(alphaSubPage,pages);const start=(alphaSubPage-1)*alphaSubPageSize,rows=alphaSubscriptions.slice(start,start+alphaSubPageSize);
+  list.innerHTML=`<table><thead><tr><th><input type="checkbox" ${rows.length&&rows.every(x=>alphaSelectedSubscriptions.has(x.id))?'checked':''} onchange="alphaToggleVisibleSubs(this.checked)"></th><th>کاربر</th><th>Quota</th><th>مصرف</th><th>باقی‌مانده</th><th>انقضا</th><th>وضعیت</th><th>عملیات</th></tr></thead><tbody>${rows.map(x=>`<tr><td><input type="checkbox" ${alphaSelectedSubscriptions.has(x.id)?"checked":""} onchange="alphaToggleSub('${alphaEsc(x.id)}',this.checked)"></td><td><strong>${alphaEsc(x.username)}</strong><small class="muted">${alphaEsc(x.protocol||"—")} · ${alphaEsc(x.country||"—")}</small></td><td>${Number(x.quota_gb||0)} GB</td><td>${Number(x.used_gb||0).toFixed(1)} GB</td><td>${Number(x.remaining_gb||0).toFixed(1)} GB</td><td>${alphaExpiry(x)}</td><td><span class="badge ${alphaEsc(x.status||"")}">${alphaEsc(x.status||"—")}</span></td><td><button class="ghost small" onclick="alphaRenewSubscription('${alphaEsc(x.id)}')">تمدید</button> <button class="ghost small" onclick="alphaShowNodes('${alphaEsc(x.id)}')">Nodeها</button></td></tr>`).join("")}</tbody></table>`;
+  const range=$("alpha-sub-range");if(range)range.textContent=`${start+1} تا ${Math.min(start+alphaSubPageSize,alphaSubscriptions.length)} از ${alphaSubscriptions.length}`;alphaUpdateSubBulk();
 }
-
-function alphaExpiry(x) {
-  if (!x.expires_at) return "—";
-  if (x.days_left < 0) return "منقضی";
-  if (x.days_left <= 7) return `${x.days_left} روز`;
-  try { return new Date(Number(x.expires_at)).toLocaleDateString("fa-IR"); }
-  catch (_) { return "—"; }
+function alphaChangeSubPage(delta){const pages=Math.max(1,Math.ceil(alphaSubscriptions.length/alphaSubPageSize));alphaSubPage=Math.max(1,Math.min(pages,alphaSubPage+delta));alphaRenderSubscriptions()}
+function alphaToggleSub(id,on){on?alphaSelectedSubscriptions.add(id):alphaSelectedSubscriptions.delete(id);alphaUpdateSubBulk()}
+function alphaToggleVisibleSubs(on){const start=(alphaSubPage-1)*alphaSubPageSize;alphaSubscriptions.slice(start,start+alphaSubPageSize).forEach(x=>on?alphaSelectedSubscriptions.add(x.id):alphaSelectedSubscriptions.delete(x.id));alphaRenderSubscriptions()}
+function alphaUpdateSubBulk(){const b=$("alpha-sub-bulk"),n=$("alpha-sub-selected-count");if(b)b.classList.toggle("hidden",alphaSelectedSubscriptions.size===0);if(n)n.textContent=`${alphaSelectedSubscriptions.size} انتخاب`}
+async function alphaBulkSubscription(action){const ids=[...alphaSelectedSubscriptions];if(!ids.length)return;if(action==="delete"&&!confirm("اشتراک‌های انتخاب‌شده حذف شوند؟"))return;try{await api("/api/subscriptions/bulk",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({ids,action})});alphaSelectedSubscriptions.clear();alphaToast("عملیات گروهی انجام شد","success");await alphaLoadSubscriptions()}catch(e){alphaToast(e.message||"عملیات ناموفق بود","error")}}
+function alphaExpiry(x){if(x.expires_at==null)return"بدون انقضا";if(x.days_left<0)return"منقضی";if(x.days_left<=7)return`${x.days_left} روز`;return new Date(Number(x.expires_at)).toLocaleDateString("fa-IR")}
+async function alphaRenewSubscription(id){const raw=prompt("چند روز تمدید شود؟","30");if(raw===null)return;const days=Number(raw);if(!Number.isFinite(days)||days<1)return alphaToast("تعداد روز معتبر نیست","error");try{await api(`/api/subscriptions/${encodeURIComponent(id)}/renew`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({days})});alphaToast("اشتراک تمدید شد","success");await alphaLoadSubscriptions()}catch(e){alphaToast(e.message||"تمدید ناموفق بود","error")}}
+async function alphaShowNodes(id){
+  const box=$("subscription-node-content");if(!box)return;$("subscription-node-modal").classList.remove("hidden");box.innerHTML='<div class="detail-loading">در حال دریافت Nodeها…</div>';
+  try{const [assigned,all]=await Promise.all([api(`/api/subscriptions/${encodeURIComponent(id)}/nodes`),api('/api/nodes')]);const ids=new Set((assigned.items||[]).map(x=>String(x.id)));box.innerHTML=`<div class="detail-head"><div><span class="eyebrow">SUBSCRIPTION NODES</span><h3>اتصال Nodeها</h3><span class="muted">Nodeهای فعال را برای این اشتراک انتخاب کن.</span></div></div><div class="node-select-list">${(all.items||[]).map(n=>`<label><input type="checkbox" value="${alphaEsc(n.id)}" ${ids.has(String(n.id))?'checked':''}><span><b>${alphaEsc(n.name)}</b><small>${alphaEsc(n.country||'—')} · ${alphaEsc(n.protocol||'—')} · ${alphaEsc(n.status||'—')}</small></span></label>`).join('')||'<div class="empty-state">Nodeای وجود ندارد.</div>'}</div><div class="detail-actions"><button class="primary" onclick="alphaSaveSubscriptionNodes('${alphaEsc(id)}')">ذخیره Nodeها</button></div>`}catch(e){box.innerHTML=`<div class="empty-state">${alphaEsc(e.message||"خطا")}</div>`}
 }
+async function alphaSaveSubscriptionNodes(id){const box=$("subscription-node-content"),ids=[...box.querySelectorAll('input[type="checkbox"]:checked')].map(x=>x.value);try{await api(`/api/subscriptions/${encodeURIComponent(id)}/nodes`,{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({node_ids:ids})});alphaToast("Nodeهای اشتراک ذخیره شد","success");closeModal("subscription-node-modal")}catch(e){alphaToast(e.message||"ذخیره ناموفق بود","error")}}
+function alphaExportSubscriptions(){const rows=[["username","protocol","country","quota_gb","used_gb","remaining_gb","status","expires_at"],...alphaSubscriptions.map(x=>[x.username,x.protocol,x.country,x.quota_gb,x.used_gb,x.remaining_gb,x.status,x.expires_at])];const csv=rows.map(row=>row.map(v=>`"${String(v??"").replaceAll('"','""')}"`).join(",")).join("\n");const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="alpha-subscriptions.csv";a.click();URL.revokeObjectURL(a.href)}
 
-async function alphaRenewSubscription(id) {
-  const raw = prompt("چند روز تمدید شود؟", "30");
-  if (raw === null) return;
-  const days = Number(raw);
-  if (!Number.isFinite(days) || days < 1) return alert("تعداد روز معتبر نیست.");
-  await api(`/api/subscriptions/${encodeURIComponent(id)}/renew`, {
-    method: "POST",
-    headers: {"content-type":"application/json"},
-    body: JSON.stringify({days})
-  });
-  await alphaLoadSubscriptions();
-}
-
-async function alphaShowNodes(id) {
-  const r = await api(`/api/subscriptions/${encodeURIComponent(id)}/nodes`);
-  const items = r.items || [];
-  alert(items.length ? items.map(x => `${x.name} — ${x.status}`).join("\n") : "برای این اشتراک Nodeای متصل نیست.");
-}
-
-function alphaExportSubscriptions() {
-  const rows = [
-    ["username","protocol","country","quota_gb","used_gb","remaining_gb","status","expires_at"],
-    ...alphaSubscriptions.map(x => [
-      x.username,x.protocol,x.country,x.quota_gb,x.used_gb,x.remaining_gb,x.status,x.expires_at
-    ])
-  ];
-  const csv = rows.map(row => row.map(v => `"${String(v ?? "").replaceAll('"','""')}"`).join(",")).join("\n");
-  const blob = new Blob(["\ufeff" + csv], {type:"text/csv;charset=utf-8"});
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "alpha-subscriptions.csv";
-  a.click();
-  URL.revokeObjectURL(a.href);
-}
+document.addEventListener("DOMContentLoaded",()=>{const search=$("alpha-sub-search"),status=$("alpha-sub-status"),sort=$("alpha-sub-sort");if(search)search.addEventListener("input",alphaLoadSubscriptions);if(status)status.addEventListener("change",alphaLoadSubscriptions);if(sort)sort.addEventListener("change",alphaLoadSubscriptions);if($("subscription-center"))alphaLoadSubscriptions()});
 
 function alphaEsc(v) {
   return String(v ?? "").replace(/[&<>"']/g, c => ({
@@ -431,16 +432,39 @@ async function alphaSecurityCheck(){
       </div>`).join("");
   }catch(e){box.innerHTML='<div class="security-card bad"><span>!</span><div><b>Security check failed</b><small>دوباره تلاش کن</small></div></div>'}
 }
+async function alphaLoadSecurityOverview(){
+  const box=document.getElementById("alpha-security-overview"); if(!box)return;
+  try{
+    const d=await api("/api/security/overview");
+    const events=d.events||[];
+    box.innerHTML=`<div class="security-overview-grid">
+      <div class="security-metric"><span>Session فعال</span><b>${Number(d.sessions?.active||0)}</b><small>اعتبار ۲۴ ساعته</small></div>
+      <div class="security-metric"><span>تلاش ناموفق</span><b>${Number(d.authentication?.failed_attempts||0)}</b><small>ثبت‌شده در Rate Limit</small></div>
+      <div class="security-metric"><span>IP مسدود</span><b>${Number(d.authentication?.blocked_ips||0)}</b><small>در حال حاضر</small></div>
+      <div class="security-metric"><span>Cookie</span><b>Secure</b><small>HttpOnly · SameSite Strict</small></div>
+    </div>
+    <div class="panel-card security-events"><div class="panel-title"><div><span class="eyebrow">SECURITY EVENTS</span><h3>رویدادهای حساس اخیر</h3></div></div>
+      ${events.length?`<div class="security-event-list">${events.map(x=>`<div class="security-event"><code>${alphaEsc(x.action||"")}</code><span>${alphaEsc(x.actor||"")}</span><small>${alphaEsc(x.details||"")} · ${alphaDate(x.created_at)}</small></div>`).join("")}</div>`:'<div class="empty-state">رویداد امنیتی ثبت‌شده‌ای وجود ندارد.</div>'}
+    </div>`;
+  }catch(e){box.innerHTML='<div class="empty-state">دریافت وضعیت امنیتی ناموفق بود.</div>'}
+}
+
 async function alphaLoadAudit(){
-  const q=encodeURIComponent((document.getElementById("alpha-audit-search")||{}).value||"");
   const box=document.getElementById("alpha-audit-list");
   if(!box)return;
+  const q=encodeURIComponent((document.getElementById("alpha-audit-search")||{}).value||"");
+  const limit=Number(document.getElementById("alpha-audit-limit")?.value||100);
+  const action=document.getElementById("alpha-audit-action")?.value||"";
   try{
-    const r=await api(`/api/audit?q=${q}&limit=150`);
-    const rows=r.items||[];
-    box.innerHTML=rows.length?`<table><thead><tr><th>زمان</th><th>Action</th><th>Actor</th><th>Details</th></tr></thead><tbody>${
-      rows.map(x=>`<tr><td>${alphaDate(x.created_at)}</td><td><code>${alphaEsc(x.action||"")}</code></td><td>${alphaEsc(x.actor||"")}</td><td>${alphaEsc(x.details||"")}</td></tr>`).join("")
-    }</tbody></table>`:'<div class="empty-state">Audit log خالی است.</div>';
+    const r=await api(`/api/audit?q=${q}&limit=${limit}`);
+    let rows=(r.items||[]);
+    if(action) rows=rows.filter(x=>String(x.action||"")===action);
+    const select=document.getElementById("alpha-audit-action");
+    if(select && select.options.length===1){
+      [...new Set((r.items||[]).map(x=>String(x.action||"")).filter(Boolean))].sort().forEach(a=>{const o=document.createElement("option");o.value=a;o.textContent=a;select.appendChild(o)});
+      if(action)select.value=action;
+    }
+    box.innerHTML=rows.length?`<table><thead><tr><th>زمان</th><th>Action</th><th>Actor</th><th>Details</th></tr></thead><tbody>${rows.map(x=>`<tr><td>${alphaDate(x.created_at)}</td><td><code>${alphaEsc(x.action||"")}</code></td><td>${alphaEsc(x.actor||"")}</td><td>${alphaEsc(x.details||"")}</td></tr>`).join("")}</tbody></table>`:'<div class="empty-state">Audit log خالی است.</div>';
   }catch(e){box.innerHTML='<div class="empty-state">خطا در دریافت Audit log</div>'}
 }
 function alphaDate(v){try{return new Date(Number(v)).toLocaleString("fa-IR")}catch(_){return"—"}}
@@ -448,21 +472,49 @@ async function alphaBackupDownload(){
   try{
     const data=await api("/api/backup/export");
     const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json;charset=utf-8"});
-    const a=document.createElement("a");
-    a.href=URL.createObjectURL(blob);
-    a.download=`alpha-backup-${new Date().toISOString().slice(0,10)}.json`;
-    a.click();
-    URL.revokeObjectURL(a.href);
-  }catch(e){alert("Backup دریافت نشد.")}
+    const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`alpha-backup-${new Date().toISOString().slice(0,10)}.json`;a.click();URL.revokeObjectURL(a.href);
+    alphaToast?.("Backup آماده شد","success");
+  }catch(e){alphaToast?.("Backup دریافت نشد","error")}
+}
+async function alphaBackupPreview(){
+  const box=document.getElementById("alpha-backup-info"); if(!box)return;
+  box.textContent="در حال بررسی…";
+  try{
+    const data=await api("/api/backup/export");
+    const tables=Object.entries(data).filter(([k,v])=>Array.isArray(v)).map(([k,v])=>`${k}: ${v.length}`);
+    box.innerHTML=`<b>Backup سالم و قابل خواندن است.</b><span>${alphaEsc(tables.join(" · ")||"داده‌ای برای export وجود ندارد")}</span>`;
+  }catch(e){box.innerHTML='<b>بررسی Backup ناموفق بود.</b>'}
 }
 document.addEventListener("DOMContentLoaded",()=>{
-  const audit=document.getElementById("alpha-audit-search");
+  const audit=document.getElementById("alpha-audit-search"), action=document.getElementById("alpha-audit-action"), limit=document.getElementById("alpha-audit-limit");
   if(audit)audit.addEventListener("input",alphaLoadAudit);
-  if(document.getElementById("security-center")){
-    alphaSecurityCheck();
-    alphaLoadAudit();
-  }
+  if(action)action.addEventListener("change",alphaLoadAudit);
+  if(limit)limit.addEventListener("change",alphaLoadAudit);
+  if(document.getElementById("security-center")){alphaSecurityCheck();alphaLoadAudit();alphaLoadSecurityOverview();}
 });
+
+
+/* Alpha 6.7 Reports Center */
+async function alphaLoadReports(){
+  const days=Number(document.getElementById("alpha-report-days")?.value||7);
+  try{
+    const d=await api(`/api/reports/summary?days=${days}`);
+    const cards=[
+      ["کاربران",d.users.total,`${d.users.active_rate}% فعال`],
+      ["مصرف",`${Number(d.users.used_gb).toFixed(1)} GB`,`${d.users.quota_usage}% از سهمیه کل`],
+      ["Node",`${d.nodes.online}/${d.nodes.total}`,`${d.nodes.avg_latency_ms} ms میانگین`],
+      ["رشد ترافیک",`${d.traffic.delta_gb>=0?"+":""}${d.traffic.delta_gb.toFixed(2)} GB`,`${d.traffic.points} Snapshot`],
+      ["فعالیت",d.activity,`در ${days} روز`],
+      ["اعلان باز",d.unread_notifications,"نیازمند پیگیری"]
+    ];
+    const box=document.getElementById("alpha-report-kpis");if(box)box.innerHTML=cards.map(x=>`<div class="report-kpi"><span>${alphaEsc(x[0])}</span><b>${alphaEsc(x[1])}</b><small>${alphaEsc(x[2])}</small></div>`).join("");
+    const note=document.getElementById("alpha-report-note");if(note)note.textContent=`گزارش ${days} روزه · آخرین بروزرسانی ${new Date(d.generated_at).toLocaleString("fa-IR")}`;
+  }catch(e){alphaToast(e.message||"گزارش در دسترس نیست","error")}
+}
+function alphaDownloadReport(type){
+  const days=Number(document.getElementById("alpha-report-days")?.value||30);
+  const a=document.createElement("a");a.href=`/api/reports/export?type=${encodeURIComponent(type)}&days=${days}`;a.download="";document.body.appendChild(a);a.click();a.remove();alphaToast("Export شروع شد","success");
+}
 
 
 /* Alpha v3.0 Production + PWA */
@@ -498,7 +550,7 @@ async function alphaRefreshControlCenter(){
     try{
       const r=await api("/api/settings/health");
       box.innerHTML=(r.checks||[]).map(x=>`<div class="alpha-settings-stat"><small>${alphaEsc(x.key)}</small><b>${x.value?"OK":"CHECK"}</b></div>`).join("")+
-      `<div class="alpha-settings-stat"><small>Version</small><b>${alphaEsc(r.version||"3.1.0")}</b></div>`;
+      `<div class="alpha-settings-stat"><small>Version</small><b>${alphaEsc(r.version||"6.3.0")}</b></div>`;
     }catch(e){box.innerHTML='<div class="alpha-settings-stat"><b>Health check failed</b></div>'}
   }
   alphaLoadAdmins();
@@ -520,9 +572,11 @@ async function alphaCreateAdmin(){
   await api("/api/admin/roles",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({username,role})});
   document.getElementById("alpha-admin-name").value="";
   alphaLoadAdmins();
+  alphaToast?.("ادمین اضافه شد","success");
 }
 async function alphaUpdateAdmin(id,body){
   await api(`/api/admin/roles/${encodeURIComponent(id)}`,{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
+  alphaToast?.("دسترسی بروزرسانی شد","success");
 }
 async function alphaToggleAdmin(id,status){
   await alphaUpdateAdmin(id,{status:status==="active"?"suspended":"active"}); alphaLoadAdmins();
@@ -563,7 +617,7 @@ async function alphaSaveUISettings(){
 async function alphaLoadNotifications(){
   try{
     const r=await api("/api/notifications"),items=r.items||[],unread=items.filter(x=>!x.is_read).length;
-    const count=document.getElementById("alpha-notif-count");if(count)count.textContent=unread>99?"99+":unread;
+    const count=document.getElementById("alpha-notif-count");if(count){count.textContent=unread>99?"99+":unread;count.classList.toggle("hidden",unread===0)}
     const box=document.getElementById("alpha-notif-list");if(!box)return;
     box.innerHTML=items.length?items.map(x=>`<div class="alpha-notif ${x.is_read?"read":""}" onclick="alphaReadNotification('${alphaEsc(x.id)}')"><b>${alphaEsc(x.title)}</b><small>${alphaEsc(x.message)}</small><time>${alphaDate(x.created_at)}</time></div>`).join(""):'<div class="empty-state">اعلانی وجود ندارد.</div>';
   }catch(_){}
