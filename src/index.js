@@ -584,7 +584,7 @@ async function alphaGetSessionRole(req, env) {
 
   return session ? "owner" : null;
 }
-}
+
 const ALPHA_ROLE_LEVEL = {viewer:1, operator:2, admin:3, owner:4};
 function alphaRequireRole(role, minimum) {
   return (ALPHA_ROLE_LEVEL[role]||0) >= (ALPHA_ROLE_LEVEL[minimum]||99);
