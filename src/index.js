@@ -25,7 +25,7 @@ async function cfJson(token, path, init={}) {
 
 async function api(req,env){
   const u=new URL(req.url), p=u.pathname;
-  if(p==="/api/health")return json({ok:true,name:"ALPHA",version:"2.0.0"});
+  if(p==="/api/health")return json({ok:true,name:"ALPHA",version:"5.0.0"});
   if(p==="/api/auth/login"&&req.method==="POST"){
     const b=await req.json().catch(()=>({}));
     if(!env.ALPHA_ADMIN_PASSWORD)return json({error:"ALPHA_ADMIN_PASSWORD is not configured"},503);
@@ -119,25 +119,11 @@ async function api(req,env){
     return json({user:urow});
   }
   if(p==="/api/activity")return json((await env.DB.prepare("SELECT * FROM activity_logs ORDER BY id DESC LIMIT 100").all()).results||[]);
-  if (p === "/api/v4/health" && req.method === "GET") {
-    const session = await alphaRBAC(req, env, "viewer");
-    return json({ok:true,version:"4.0.1",rbac:session.ok,role:session.role||null,now:Date.now()});
-  }
 
-  if (req.method !== "GET" && p.startsWith("/api/")) {
-    const minimum = p.startsWith("/api/admin/") || p.startsWith("/api/panel/") || p.startsWith("/api/backup/")
-      ? "admin" : "operator";
-    const session = await alphaRBAC(req, env, minimum);
-    if (!session.ok) return json({error:"Forbidden",role:session.role||null},403);
-  }
-
-  if (p === "/api/subscriptions/advanced" && req.method === "GET")
-    return alphaSubscriptionAdvanced(req, env);
-  if (p === "/api/subscriptions/bulk" && req.method === "POST")
-    return alphaSubscriptionBulk(req, env);
+  if (p === "/api/subscriptions/advanced" && req.method === "GET") return alphaSubscriptionAdvanced(req, env);
+  if (p === "/api/subscriptions/bulk" && req.method === "POST") return alphaSubscriptionBulk(req, env);
   const subRenew = p.match(/^\/api\/subscriptions\/([^/]+)\/renew$/);
-  if (subRenew && req.method === "POST")
-    return alphaSubscriptionRenew(req, env, subRenew[1]);
+  if (subRenew && req.method === "POST") return alphaSubscriptionRenew(req, env, subRenew[1]);
   const subNodes = p.match(/^\/api\/subscriptions\/([^/]+)\/nodes$/);
   if (subNodes && req.method === "GET") return alphaSubscriptionNodes(env, subNodes[1]);
   if (subNodes && req.method === "PUT") return alphaSetSubscriptionNodes(req, env, subNodes[1]);
@@ -148,10 +134,6 @@ async function api(req,env){
   if (p === "/api/security/status" && req.method === "GET") return alphaSecurityStatus(req, env);
 
   if (p === "/api/settings/health" && req.method === "GET") return alphaSettings(req, env);
-  if (p === "/api/auth/me" && req.method === "GET") {
-    const session = await alphaRBAC(req, env, "viewer");
-    return json({authenticated:session.ok,role:session.role||null});
-  }
   if (p === "/api/admin/roles" && req.method === "GET") return alphaAdminRoles(req, env);
   if (p === "/api/admin/roles" && req.method === "POST") return alphaAdminRoleCreate(req, env);
   const adminRoleMatch = p.match(/^\/api\/admin\/roles\/([^/]+)$/);
@@ -161,8 +143,11 @@ async function api(req,env){
   if (p === "/api/panel/settings" && req.method === "PUT") return alphaPanelSettingsPut(req, env);
   if (p === "/api/notifications" && req.method === "GET") return alphaNotifications(req, env);
   if (p === "/api/notifications/read-all" && req.method === "POST") return alphaNotificationsReadAll(req, env);
-  const alphaNotifMatch=p.match(/^\/api\/notifications\/([^/]+)\/read$/);
-  if(alphaNotifMatch && req.method==="POST") return alphaNotificationRead(req,env,alphaNotifMatch[1]);
+  const alphaNotifMatch = p.match(/^\/api\/notifications\/([^/]+)\/read$/);
+  if (alphaNotifMatch && req.method === "POST") return alphaNotificationRead(req, env, alphaNotifMatch[1]);
+
+  if (p === "/api/traffic/history" && req.method === "GET") return alphaTrafficHistory(req, env);
+  if (p === "/api/traffic/snapshot" && req.method === "POST") return alphaTrafficSnapshot(req, env);
 
   return json({error:"Not found"},404);
 }
@@ -328,6 +313,36 @@ async function nodeStats(req,env){
 }
 
 
+async function alphaTrafficSnapshot(req, env) {
+  const id = crypto.randomUUID();
+  const now = Date.now();
+  const total = await env.DB.prepare("SELECT COALESCE(SUM(used_gb),0) v FROM users").first();
+  const users = await env.DB.prepare("SELECT COUNT(*) c FROM users").first();
+  const active = await env.DB.prepare("SELECT COUNT(*) c FROM users WHERE status='active'").first();
+  try {
+    await env.DB.prepare("INSERT INTO traffic_snapshots(id,captured_at,total_used_gb,users_count,active_users_count) VALUES(?,?,?,?,?)")
+      .bind(id,now,Number(total?.v||0),Number(users?.c||0),Number(active?.c||0)).run();
+    await env.DB.prepare("DELETE FROM traffic_snapshots WHERE captured_at < ?").bind(now-30*86400000).run();
+    return json({ok:true,captured_at:now,total_used_gb:Number(total?.v||0),storage:true});
+  } catch (e) {
+    return json({error:"Traffic history table is not ready. Apply migration 0010_traffic_snapshots.sql."},503);
+  }
+}
+
+async function alphaTrafficHistory(req, env) {
+  const hours=Math.min(168,Math.max(1,Number(new URL(req.url).searchParams.get("hours")||24)));
+  const since=Date.now()-hours*3600000;
+  const current=await env.DB.prepare("SELECT COALESCE(SUM(used_gb),0) v FROM users").first();
+  try {
+    const r=await env.DB.prepare("SELECT captured_at,total_used_gb,users_count,active_users_count FROM traffic_snapshots WHERE captured_at>=? ORDER BY captured_at ASC")
+      .bind(since).all();
+    return json({hours,items:r.results||[],current_used_gb:Number(current?.v||0),storage:true});
+  } catch (e) {
+    // Keep Dashboard usable even if migration 0010 has not been applied yet.
+    return json({hours,items:[],current_used_gb:Number(current?.v||0),storage:false,notice:"traffic_snapshots migration is not applied"});
+  }
+}
+
 async function alphaSubscriptionAdvanced(req, env) {
   const u = new URL(req.url);
   const q = (u.searchParams.get("q") || "").trim();
@@ -428,8 +443,8 @@ async function alphaSubscriptionBulk(req, env) {
 }
 
 
-    
-    
+
+
 async function alphaAuditList(req, env) {
   const u = new URL(req.url);
   const q = (u.searchParams.get("q") || "").trim();
@@ -484,6 +499,8 @@ async function alphaSecurityStatus(req, env) {
 }
 
 
+
+
 async function alphaSettings(req, env) {
   const checks = [
     {key:"admin_auth", value:!!env.ALPHA_ADMIN_PASSWORD},
@@ -525,6 +542,8 @@ async function alphaAdminRoleUpdate(req, env, id) {
   if(typeof log==="function") await log(env,"admin.role.update","admin",id);
   return json({ok:true});
 }
+
+
 
 
 async function alphaPanelSettingsGet(req, env) {
@@ -570,39 +589,28 @@ async function alphaNotificationsReadAll(req, env) {
 }
 
 
-/* ALPHA v4.0 — real RBAC helpers */
-async function alphaGetSessionRole(req, env) {
-  const cookie = req.headers.get("Cookie") || "";
-  const m = cookie.match(/(?:^|;\s*)alpha_session=([^;]+)/);
-  if (!m) return null;
 
-  const sessionToken = decodeURIComponent(m[1]);
-
-  const session = await env.DB.prepare(
-    "SELECT id FROM admin_sessions WHERE token_hash=? AND expires_at>CURRENT_TIMESTAMP LIMIT 1"
-  ).bind(await sha(sessionToken)).first().catch(()=>null);
-
-  return session ? "owner" : null;
+async function takeTrafficSnapshot(env){
+  if(!env.DB)return;
+  const now=Date.now();
+  const total=await env.DB.prepare("SELECT COALESCE(SUM(used_gb),0) v FROM users").first();
+  const users=await env.DB.prepare("SELECT COUNT(*) c FROM users").first();
+  const active=await env.DB.prepare("SELECT COUNT(*) c FROM users WHERE status='active'").first();
+  await env.DB.prepare("INSERT INTO traffic_snapshots(id,captured_at,total_used_gb,users_count,active_users_count) VALUES(?,?,?,?,?)")
+    .bind(crypto.randomUUID(),now,Number(total?.v||0),Number(users?.c||0),Number(active?.c||0)).run();
+  await env.DB.prepare("DELETE FROM traffic_snapshots WHERE captured_at < ?").bind(now-30*86400000).run();
 }
 
-const ALPHA_ROLE_LEVEL = {viewer:1, operator:2, admin:3, owner:4};
-function alphaRequireRole(role, minimum) {
-  return (ALPHA_ROLE_LEVEL[role]||0) >= (ALPHA_ROLE_LEVEL[minimum]||99);
-}
-async function alphaRBAC(req, env, minimum="viewer") {
-  const role = await alphaGetSessionRole(req, env);
-  return {ok: !!role && alphaRequireRole(role, minimum), role};
-}
-
-export default {async fetch(req,env){
-  const u=new URL(req.url);
-  if(u.pathname === "/panel" || u.pathname === "/panel/"){
-    return env.ASSETS.fetch(new Request(new URL("/index.html",u),req));
-  }
-  if(u.pathname.startsWith("/sub/")){
-    const sub=u.pathname.split("/").filter(Boolean)[1]||"";
-    return publicSubscription(sub,env, u);
-  }
-  if(u.pathname.startsWith("/api/")) return api(req,env);
-  return env.ASSETS.fetch(req);
-}};
+export default {
+  async fetch(req,env){
+    const u=new URL(req.url);
+    if(u.pathname === "/panel" || u.pathname === "/panel/") return env.ASSETS.fetch(new Request(new URL("/index.html",u),req));
+    if(u.pathname.startsWith("/sub/")){
+      const sub=u.pathname.split("/").filter(Boolean)[1]||"";
+      return publicSubscription(sub,env,u);
+    }
+    if(u.pathname.startsWith("/api/")) return api(req,env);
+    return env.ASSETS.fetch(req);
+  },
+  async scheduled(event,env,ctx){ ctx.waitUntil(takeTrafficSnapshot(env)); }
+};
