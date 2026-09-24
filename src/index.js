@@ -34,7 +34,7 @@ async function cfJson(token, path, init={}) {
 
 async function api(req,env){
   const u=new URL(req.url), p=u.pathname;
-  if(p==="/api/health")return json({ok:true,name:"ALPHA",version:"6.0.0"});
+  if(p==="/api/health")return json({ok:true,name:"ALPHA",version:"6.8.0"});
   if(p==="/api/auth/login"&&req.method==="POST"){
     const b=await req.json().catch(()=>({}));
     if(!env.ALPHA_ADMIN_PASSWORD)return json({error:"ALPHA_ADMIN_PASSWORD is not configured"},503);
@@ -55,13 +55,13 @@ async function api(req,env){
     }catch(_){ /* migration may not be applied yet; continue with normal auth */ }
     const t=token(), h=await sha(t), exp=new Date(Date.now()+86400000).toISOString();
     await env.DB.prepare("DELETE FROM admin_sessions WHERE expires_at<=CURRENT_TIMESTAMP").run();
-    await env.DB.prepare("INSERT INTO admin_sessions(id,token_hash,expires_at) VALUES(?,?,?)").bind(crypto.randomUUID(),h,exp).run();
-    await log(env,"login");
+    await env.DB.prepare("INSERT INTO admin_sessions(id,token_hash,expires_at,ip,user_agent) VALUES(?,?,?,?,?)").bind(crypto.randomUUID(),h,exp,ip,String(req.headers.get("User-Agent")||"").slice(0,300)).run();
+    await log(env,"login","admin",`ip:${ip}`);
     return json({ok:true},200,{"Set-Cookie":`alpha_session=${t}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=86400`});
   }
   if(p==="/api/auth/logout"&&req.method==="POST"){
     const t=req.headers.get("cookie")?.match(/alpha_session=([^;]+)/)?.[1];
-    if(t)await env.DB.prepare("DELETE FROM admin_sessions WHERE token_hash=?").bind(await sha(t)).run();
+    if(t){ await env.DB.prepare("DELETE FROM admin_sessions WHERE token_hash=?").bind(await sha(t)).run(); await log(env,"logout","admin",`ip:${req.headers.get("CF-Connecting-IP")||"unknown"}`); }
     return json({ok:true},200,{"Set-Cookie":"alpha_session=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0"});
   }
   // Installer is intentionally public: it is used before the first admin
@@ -156,6 +156,8 @@ async function api(req,env){
   const nodeHealthMatch=p.match(/^\/api\/nodes\/([^/]+)\/health$/);
   if(nodeHealthMatch && req.method==="POST")return nodeMonitor(req,env,nodeHealthMatch[1]);
   if(p==="/api/nodes/monitor" && req.method==="POST")return monitorAllNodes(req,env);
+  const nodeHistoryMatch=p.match(/^\/api\/nodes\/([^/]+)\/history$/);
+  if(nodeHistoryMatch && req.method==="GET")return nodeHealthHistory(req,env,nodeHistoryMatch[1]);
 
   if (p === "/api/subscriptions/advanced" && req.method === "GET") return alphaSubscriptionAdvanced(req, env);
   if (p === "/api/subscriptions/bulk" && req.method === "POST") return alphaSubscriptionBulk(req, env);
@@ -169,6 +171,13 @@ async function api(req,env){
   if (p === "/api/audit/clear" && req.method === "POST") return alphaAuditClear(req, env);
   if (p === "/api/backup/export" && req.method === "GET") return alphaBackupExport(req, env);
   if (p === "/api/security/status" && req.method === "GET") return alphaSecurityStatus(req, env);
+  if (p === "/api/security/overview" && req.method === "GET") return alphaSecurityOverview(req, env);
+  if (p === "/api/system/diagnostics" && req.method === "GET") return alphaSystemDiagnostics(req, env);
+  if (p === "/api/auth/session" && req.method === "GET") return alphaSessionInfo(req, env);
+  if (p === "/api/auth/sessions/revoke-all" && req.method === "POST") return alphaRevokeAllSessions(req, env);
+
+  if (p === "/api/reports/summary" && req.method === "GET") return alphaReportsSummary(req, env);
+  if (p === "/api/reports/export" && req.method === "GET") return alphaReportsExport(req, env);
 
   if (p === "/api/operations/summary" && req.method === "GET") return alphaOperationsSummary(req, env);
   if (p === "/api/settings/health" && req.method === "GET") return alphaSettings(req, env);
@@ -279,9 +288,25 @@ async function usersAdvanced(req,env){
   const allowed={created_at:"created_at",username:"username",used_gb:"used_gb",quota_gb:"quota_gb",expires_at:"expires_at",status:"status"};
   const order=allowed[sort]||"created_at";
   const like=`%${q}%`;
-  const r=await env.DB.prepare(`SELECT id,username,protocol,country,quota_gb,used_gb,device_limit,status,expires_at,created_at,updated_at FROM users WHERE (?='' OR username LIKE ? OR country LIKE ? OR protocol LIKE ?) AND (?='' OR status=?) AND (?='' OR country=?) ORDER BY ${order} ${dir} LIMIT 500`)
-    .bind(q,like,like,like,status,status,country,country).all();
-  return json({items:r.results||[]});
+  const where=`WHERE (?='' OR username LIKE ? OR country LIKE ? OR protocol LIKE ?) AND (?='' OR status=?) AND (?='' OR country=?)`;
+  const [r,total,active,traffic,expiring]=await Promise.all([
+    env.DB.prepare(`SELECT id,username,protocol,country,quota_gb,used_gb,device_limit,status,expires_at,created_at,updated_at FROM users ${where} ORDER BY ${order} ${dir} LIMIT 500`)
+      .bind(q,like,like,like,status,status,country,country).all(),
+    env.DB.prepare(`SELECT COUNT(*) c FROM users ${where}`).bind(q,like,like,like,status,status,country,country).first(),
+    env.DB.prepare(`SELECT COUNT(*) c FROM users ${where} AND status='active'`).bind(q,like,like,like,status,status,country,country).first(),
+    env.DB.prepare(`SELECT COALESCE(SUM(used_gb),0) v FROM users ${where}`).bind(q,like,like,like,status,status,country,country).first(),
+    env.DB.prepare(`SELECT COUNT(*) c FROM users ${where} AND expires_at IS NOT NULL AND CAST(expires_at AS INTEGER)>? AND CAST(expires_at AS INTEGER)<=?`)
+      .bind(q,like,like,like,status,status,country,country,Date.now(),Date.now()+7*86400000).first()
+  ]);
+  return json({
+    items:r.results||[],
+    stats:{
+      total:Number(total?.c||0),
+      active:Number(active?.c||0),
+      traffic:Number(traffic?.v||0),
+      expiring:Number(expiring?.c||0)
+    }
+  });
 }
 async function updateUserPro(req,env,id){
   const b=await req.json();
@@ -342,6 +367,7 @@ async function nodeMonitor(req,env,id){
   }catch(e){latency=Date.now()-started;error=String(e?.message||e)}
   const status=ok?"online":"offline";
   await env.DB.prepare("UPDATE nodes SET status=?,latency_ms=?,updated_at=? WHERE id=?").bind(status,latency,Date.now(),id).run();
+  await recordNodeHealth(env,id,status,latency,error||null);
   await log(env,"node.healthcheck","system",`${id}:${status}:${latency}`);
   return json({ok:true,node:{...n,status,latency_ms:latency},error:error||null});
 }
@@ -359,11 +385,31 @@ async function monitorAllNodes(req,env){
     }catch(e){err=String(e?.message||e)}
     const latency=Date.now()-started, status=ok?"online":"offline";
     await env.DB.prepare("UPDATE nodes SET status=?,latency_ms=?,updated_at=? WHERE id=?").bind(status,latency,Date.now(),n.id).run();
+    await recordNodeHealth(env,n.id,status,latency,err||null);
     items.push({...n,status,latency_ms:latency,error:err||null});
   }
   await log(env,"node.healthcheck.all","system",`${items.length} nodes`);
   return json({items});
 }
+async function recordNodeHealth(env,nodeId,status,latency,error){
+  try{
+    await env.DB.prepare("INSERT INTO node_health_history(id,node_id,checked_at,status,latency_ms,error) VALUES(?,?,?,?,?,?)")
+      .bind(crypto.randomUUID(),nodeId,Date.now(),status,latency,error).run();
+    await env.DB.prepare("DELETE FROM node_health_history WHERE checked_at < ?").bind(Date.now()-30*86400000).run();
+  }catch(_){ /* migration is optional until applied */ }
+}
+async function nodeHealthHistory(req,env,id){
+  const u=new URL(req.url);
+  const hours=Math.min(168,Math.max(1,Number(u.searchParams.get("hours")||24)));
+  try{
+    const r=await env.DB.prepare("SELECT checked_at,status,latency_ms,error FROM node_health_history WHERE node_id=? AND checked_at>=? ORDER BY checked_at ASC")
+      .bind(id,Date.now()-hours*3600000).all();
+    const items=r.results||[], online=items.filter(x=>x.status==='online').length;
+    const avg=items.filter(x=>x.latency_ms!=null).reduce((a,x)=>a+Number(x.latency_ms),0)/(items.filter(x=>x.latency_ms!=null).length||1);
+    return json({hours,items,uptime_pct:items.length?Math.round(online/items.length*1000)/10:0,avg_latency_ms:items.length?Math.round(avg):0});
+  }catch(_){ return json({hours,items:[],uptime_pct:null,avg_latency_ms:null,storage:false}); }
+}
+
 async function nodeStats(req,env){
   const total=await env.DB.prepare("SELECT COUNT(*) c FROM nodes").first();
   const online=await env.DB.prepare("SELECT COUNT(*) c FROM nodes WHERE status='online'").first();
@@ -543,6 +589,56 @@ async function alphaBackupExport(req, env) {
   return json(out);
 }
 
+async function alphaSessionInfo(req, env) {
+  const raw=req.headers.get("cookie")?.match(/alpha_session=([^;]+)/)?.[1];
+  if(!raw) return json({authenticated:false});
+  const hash=await sha(raw);
+  const row=await env.DB.prepare("SELECT id,expires_at FROM admin_sessions WHERE token_hash=? AND expires_at>CURRENT_TIMESTAMP").bind(hash).first();
+  if(!row) return json({authenticated:false});
+  const count=await env.DB.prepare("SELECT COUNT(*) c FROM admin_sessions WHERE expires_at>CURRENT_TIMESTAMP").first();
+  return json({authenticated:true,expires_at:row.expires_at,active_sessions:Number(count?.c||0)});
+}
+async function alphaRevokeAllSessions(req, env) {
+  const raw=req.headers.get("cookie")?.match(/alpha_session=([^;]+)/)?.[1];
+  if(!raw) return json({error:"Unauthorized"},401);
+  const hash=await sha(raw);
+  const current=await env.DB.prepare("SELECT id FROM admin_sessions WHERE token_hash=? AND expires_at>CURRENT_TIMESTAMP").bind(hash).first();
+  if(!current) return json({error:"Unauthorized"},401);
+  await env.DB.prepare("DELETE FROM admin_sessions").run();
+  await log(env,"sessions.revoked_all","admin","all admin sessions revoked");
+  return json({ok:true},200,{"Set-Cookie":"alpha_session=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0"});
+}
+async function alphaSystemDiagnostics(req, env) {
+  const checks=[];
+  const check=async(name,fn)=>{try{const value=await fn();checks.push({name,status:"ok",value});}catch(e){checks.push({name,status:"error",value:String(e?.message||e)});}};
+  await check("database",async()=>{const r=await env.DB.prepare("SELECT 1 v").first();return r?.v===1?"reachable":"unexpected"});
+  await check("users_table",async()=>{const r=await env.DB.prepare("SELECT COUNT(*) c FROM users").first();return `${Number(r?.c||0)} rows`});
+  await check("nodes_table",async()=>{const r=await env.DB.prepare("SELECT COUNT(*) c FROM nodes").first();return `${Number(r?.c||0)} rows`});
+  await check("sessions_table",async()=>{const r=await env.DB.prepare("SELECT COUNT(*) c FROM admin_sessions WHERE expires_at>CURRENT_TIMESTAMP").first();return `${Number(r?.c||0)} active`});
+  await check("notifications_table",async()=>{const r=await env.DB.prepare("SELECT COUNT(*) c FROM panel_notifications").first();return `${Number(r?.c||0)} rows`});
+  await check("traffic_snapshots",async()=>{const r=await env.DB.prepare("SELECT MAX(captured_at) v FROM traffic_snapshots").first();return r?.v?new Date(Number(r.v)).toISOString():"no snapshots"});
+  await check("health_history",async()=>{const r=await env.DB.prepare("SELECT COUNT(*) c FROM node_health_history").first();return `${Number(r?.c||0)} rows`});
+  const errors=checks.filter(x=>x.status!=="ok").length;
+  return json({ok:errors===0,version:"6.6.0",checked_at:Date.now(),checks});
+}
+
+
+async function alphaSecurityOverview(req, env) {
+  const [sessions, failed, blocked, recent] = await Promise.all([
+    env.DB.prepare("SELECT COUNT(*) c FROM admin_sessions WHERE expires_at>CURRENT_TIMESTAMP").first(),
+    env.DB.prepare("SELECT COALESCE(SUM(attempts),0) c FROM auth_rate_limits").first(),
+    env.DB.prepare("SELECT COUNT(*) c FROM auth_rate_limits WHERE blocked_until>?").bind(Date.now()).first(),
+    env.DB.prepare("SELECT action,actor,details,created_at FROM activity_logs WHERE action IN ('login','login_failed','logout','sessions.revoked_all','admin.role.create','admin.role.update','audit.clear') ORDER BY id DESC LIMIT 20").all()
+  ]);
+  return json({
+    generated_at:Date.now(),
+    sessions:{active:Number(sessions?.c||0)},
+    authentication:{failed_attempts:Number(failed?.c||0),blocked_ips:Number(blocked?.c||0)},
+    events:recent.results||[],
+    controls:{session_ttl_hours:24,login_attempt_limit:8,lockout_minutes:15,same_site:"Strict",secure_cookie:true,http_only:true}
+  });
+}
+
 async function alphaSecurityStatus(req, env) {
   const checks = [
     {key:"admin_password_secret", ok:!!env.ALPHA_ADMIN_PASSWORD, label:"Admin password secret"},
@@ -615,7 +711,16 @@ async function alphaSettings(req, env) {
     {key:"pwa", value:true},
     {key:"audit", value:true}
   ];
-  return json({version:"6.0.0",checks,generated_at:Date.now()});
+  let nodeHealth={total:0,online:0,offline:0};
+  try{
+    const [total,online,offline]=await Promise.all([
+      env.DB.prepare("SELECT COUNT(*) c FROM nodes").first(),
+      env.DB.prepare("SELECT COUNT(*) c FROM nodes WHERE status='online'").first(),
+      env.DB.prepare("SELECT COUNT(*) c FROM nodes WHERE status='offline'").first()
+    ]);
+    nodeHealth={total:Number(total?.c||0),online:Number(online?.c||0),offline:Number(offline?.c||0)};
+  }catch(_){}
+  return json({version:"6.2.0",checks,nodeHealth,generated_at:Date.now()});
 }
 async function alphaAdminRoles(req, env) {
   const r=await env.DB.prepare(
@@ -686,6 +791,30 @@ async function alphaNotifications(req, env) {
   ).all();
   return json({items:r.results||[]});
 }
+async function alphaNotificationsSync(req, env) {
+  const [usersR,nodesR] = await Promise.all([
+    env.DB.prepare("SELECT id,username,quota_gb,used_gb,status,expires_at FROM users").all(),
+    env.DB.prepare("SELECT id,name,status,latency_ms FROM nodes").all()
+  ]);
+  const users=usersR.results||[], nodes=nodesR.results||[], now=Date.now(), alerts=[];
+  const add=(key,title,message,level="warning")=>alerts.push({key,title,message,level});
+  const quota=users.filter(u=>u.status==='active'&&Number(u.quota_gb)>0&&Number(u.used_gb)/Number(u.quota_gb)>=.8);
+  if(quota.length)add(`quota:${quota.length}`,"Quota نزدیک سقف",`${quota.length} کاربر فعال بیش از ۸۰٪ سهمیه خود را مصرف کرده‌اند.`,`warning`);
+  const exhausted=users.filter(u=>u.status==='active'&&Number(u.quota_gb)>0&&Number(u.used_gb)>=Number(u.quota_gb));
+  if(exhausted.length)add(`exhausted:${exhausted.length}`,"Quota تمام شده",`${exhausted.length} کاربر فعال به سقف سهمیه رسیده‌اند.`,`critical`);
+  const expiring=users.filter(u=>u.status==='active'&&u.expires_at&&Number(u.expires_at)>now&&Number(u.expires_at)-now<=7*86400000);
+  if(expiring.length)add(`expiry:${expiring.length}`,"انقضای نزدیک",`${expiring.length} کاربر در ۷ روز آینده منقضی می‌شوند.`,`warning`);
+  const offline=nodes.filter(n=>n.status!=='online'&&n.status!=='active');
+  if(offline.length)add(`nodes:${offline.length}`,"Node نیازمند بررسی",`${offline.length} Node آنلاین نیستند یا وضعیت نامشخص دارند.`,`critical`);
+  const slow=nodes.filter(n=>Number(n.latency_ms)>500);
+  if(slow.length)add(`latency:${slow.length}`,"Latency بالا",`${slow.length} Node دارای latency بالاتر از ۵۰۰ms هستند.`,`warning`);
+  for(const a of alerts){
+    const existing=await env.DB.prepare("SELECT id FROM panel_notifications WHERE title=? AND message=? AND created_at>? LIMIT 1").bind(a.title,a.message,now-6*3600000).first();
+    if(!existing) await env.DB.prepare("INSERT INTO panel_notifications(id,title,message,level,is_read,created_at) VALUES(?,?,?,?,0,?)").bind(crypto.randomUUID(),a.title,a.message,a.level,now).run();
+  }
+  return alphaNotifications(req,env);
+}
+
 async function alphaNotificationRead(req, env, id) {
   await env.DB.prepare("UPDATE panel_notifications SET is_read=1 WHERE id=?").bind(id).run();
   return json({ok:true});
@@ -695,6 +824,48 @@ async function alphaNotificationsReadAll(req, env) {
   return json({ok:true});
 }
 
+
+
+function csvCell(v){
+  const x=String(v??"").replace(/"/g,'""');
+  return `"${x}"`;
+}
+function csvResponse(rows,filename){
+  const csv="\ufeff"+rows.map(r=>r.map(csvCell).join(",")).join("\r\n")+"\r\n";
+  return new Response(csv,{status:200,headers:{"content-type":"text/csv; charset=utf-8","content-disposition":`attachment; filename="${filename}"`}});
+}
+async function alphaReportsSummary(req,env){
+  const u=new URL(req.url), days=Math.min(90,Math.max(1,Number(u.searchParams.get("days")||7))), since=Date.now()-days*86400000;
+  const [users,nodes,traffic,activity,notifs]=await Promise.all([
+    env.DB.prepare("SELECT COUNT(*) total, SUM(CASE WHEN status='active' THEN 1 ELSE 0 END) active, SUM(CASE WHEN status='suspended' THEN 1 ELSE 0 END) suspended, COALESCE(SUM(used_gb),0) used, COALESCE(SUM(quota_gb),0) quota FROM users").first(),
+    env.DB.prepare("SELECT COUNT(*) total, SUM(CASE WHEN status IN ('online','active') THEN 1 ELSE 0 END) online, SUM(CASE WHEN status NOT IN ('online','active') THEN 1 ELSE 0 END) offline, COALESCE(AVG(latency_ms),0) latency FROM nodes").first(),
+    env.DB.prepare("SELECT COUNT(*) points, COALESCE(MIN(total_used_gb),0) start_gb, COALESCE(MAX(total_used_gb),0) end_gb FROM traffic_snapshots WHERE captured_at>=?").bind(since).first(),
+    env.DB.prepare("SELECT COUNT(*) c FROM activity_logs WHERE created_at>=datetime('now',?)").bind(`-${days} days`).first(),
+    env.DB.prepare("SELECT COUNT(*) c FROM panel_notifications WHERE created_at>=? AND is_read=0").bind(since).first()
+  ]);
+  const total=Number(users?.total||0), active=Number(users?.active||0), used=Number(users?.used||0), quota=Number(users?.quota||0);
+  return json({days,since,generated_at:Date.now(),users:{total,active,suspended:Number(users?.suspended||0),active_rate:total?Number((active/total*100).toFixed(1)):0,used_gb:used,quota_gb:quota,quota_usage:quota?Number((used/quota*100).toFixed(1)):0},nodes:{total:Number(nodes?.total||0),online:Number(nodes?.online||0),offline:Number(nodes?.offline||0),avg_latency_ms:Number(Number(nodes?.latency||0).toFixed(0))},traffic:{points:Number(traffic?.points||0),start_gb:Number(traffic?.start_gb||0),end_gb:Number(traffic?.end_gb||0),delta_gb:Number((Number(traffic?.end_gb||0)-Number(traffic?.start_gb||0)).toFixed(2))},activity:Number(activity?.c||0),unread_notifications:Number(notifs?.c||0)});
+}
+async function alphaReportsExport(req,env){
+  const u=new URL(req.url), type=String(u.searchParams.get("type")||"users"), days=Math.min(90,Math.max(1,Number(u.searchParams.get("days")||30))), since=Date.now()-days*86400000;
+  if(type==="users"){
+    const r=await env.DB.prepare("SELECT username,protocol,country,status,quota_gb,used_gb,device_limit,expires_at,created_at FROM users ORDER BY id DESC").all();
+    return csvResponse([["username","protocol","country","status","quota_gb","used_gb","device_limit","expires_at","created_at"],...(r.results||[]).map(x=>[x.username,x.protocol,x.country,x.status,x.quota_gb,x.used_gb,x.device_limit,x.expires_at,x.created_at])],`alpha-users-${new Date().toISOString().slice(0,10)}.csv`);
+  }
+  if(type==="nodes"){
+    const r=await env.DB.prepare("SELECT name,country,endpoint,protocol,status,latency_ms,last_seen,created_at FROM nodes ORDER BY id DESC").all();
+    return csvResponse([["name","country","endpoint","protocol","status","latency_ms","last_seen","created_at"],...(r.results||[]).map(x=>[x.name,x.country,x.endpoint,x.protocol,x.status,x.latency_ms,x.last_seen,x.created_at])],`alpha-nodes-${new Date().toISOString().slice(0,10)}.csv`);
+  }
+  if(type==="traffic"){
+    const r=await env.DB.prepare("SELECT captured_at,total_used_gb,users_count,active_users_count FROM traffic_snapshots WHERE captured_at>=? ORDER BY captured_at ASC").bind(since).all();
+    return csvResponse([["captured_at","total_used_gb","users_count","active_users_count"],...(r.results||[]).map(x=>[new Date(Number(x.captured_at)).toISOString(),x.total_used_gb,x.users_count,x.active_users_count])],`alpha-traffic-${days}d-${new Date().toISOString().slice(0,10)}.csv`);
+  }
+  if(type==="activity"){
+    const r=await env.DB.prepare("SELECT action,actor,details,created_at FROM activity_logs WHERE created_at>=datetime('now',?) ORDER BY id DESC").bind(`-${days} days`).all();
+    return csvResponse([["action","actor","details","created_at"],...(r.results||[]).map(x=>[x.action,x.actor,x.details,x.created_at])],`alpha-activity-${days}d-${new Date().toISOString().slice(0,10)}.csv`);
+  }
+  return json({error:"Unknown report type"},400);
+}
 
 
 async function takeTrafficSnapshot(env){
