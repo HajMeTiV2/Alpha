@@ -32,7 +32,7 @@ async function api(req,env){
     if(b.password!==env.ALPHA_ADMIN_PASSWORD){await log(env,"login_failed");return json({error:"Invalid credentials"},401)}
     const t=token(), h=await sha(t), exp=new Date(Date.now()+86400000).toISOString();
     await env.DB.prepare("DELETE FROM admin_sessions WHERE expires_at<=CURRENT_TIMESTAMP").run();
-    await env.DB.prepare("INSERT INTO admin_sessions(id,token_hash,expires_at) VALUES(?,?,?)").bind(crypto.randomUUID(),h,exp).run();
+    await env.DB.prepare("INSERT INTO admin_sessions(id,token_hash,expires_at,admin_id) VALUES(?,?,?,?)").bind(crypto.randomUUID(),h,exp,"owner-local").run();
     await log(env,"login");
     return json({ok:true},200,{"Set-Cookie":`alpha_session=${t}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=86400`});
   }
@@ -119,6 +119,51 @@ async function api(req,env){
     return json({user:urow});
   }
   if(p==="/api/activity")return json((await env.DB.prepare("SELECT * FROM activity_logs ORDER BY id DESC LIMIT 100").all()).results||[]);
+  if (p === "/api/v4/health" && req.method === "GET") {
+    const session = await alphaRBAC(req, env, "viewer");
+    return json({ok:true,version:"4.0.1",rbac:session.ok,role:session.role||null,now:Date.now()});
+  }
+
+  if (req.method !== "GET" && p.startsWith("/api/")) {
+    const minimum = p.startsWith("/api/admin/") || p.startsWith("/api/panel/") || p.startsWith("/api/backup/")
+      ? "admin" : "operator";
+    const session = await alphaRBAC(req, env, minimum);
+    if (!session.ok) return json({error:"Forbidden",role:session.role||null},403);
+  }
+
+  if (p === "/api/subscriptions/advanced" && req.method === "GET")
+    return alphaSubscriptionAdvanced(req, env);
+  if (p === "/api/subscriptions/bulk" && req.method === "POST")
+    return alphaSubscriptionBulk(req, env);
+  const subRenew = p.match(/^\/api\/subscriptions\/([^/]+)\/renew$/);
+  if (subRenew && req.method === "POST")
+    return alphaSubscriptionRenew(req, env, subRenew[1]);
+  const subNodes = p.match(/^\/api\/subscriptions\/([^/]+)\/nodes$/);
+  if (subNodes && req.method === "GET") return alphaSubscriptionNodes(env, subNodes[1]);
+  if (subNodes && req.method === "PUT") return alphaSetSubscriptionNodes(req, env, subNodes[1]);
+
+  if (p === "/api/audit" && req.method === "GET") return alphaAuditList(req, env);
+  if (p === "/api/audit/clear" && req.method === "POST") return alphaAuditClear(req, env);
+  if (p === "/api/backup/export" && req.method === "GET") return alphaBackupExport(req, env);
+  if (p === "/api/security/status" && req.method === "GET") return alphaSecurityStatus(req, env);
+
+  if (p === "/api/settings/health" && req.method === "GET") return alphaSettings(req, env);
+  if (p === "/api/auth/me" && req.method === "GET") {
+    const session = await alphaRBAC(req, env, "viewer");
+    return json({authenticated:session.ok,role:session.role||null});
+  }
+  if (p === "/api/admin/roles" && req.method === "GET") return alphaAdminRoles(req, env);
+  if (p === "/api/admin/roles" && req.method === "POST") return alphaAdminRoleCreate(req, env);
+  const adminRoleMatch = p.match(/^\/api\/admin\/roles\/([^/]+)$/);
+  if (adminRoleMatch && req.method === "PATCH") return alphaAdminRoleUpdate(req, env, adminRoleMatch[1]);
+
+  if (p === "/api/panel/settings" && req.method === "GET") return alphaPanelSettingsGet(req, env);
+  if (p === "/api/panel/settings" && req.method === "PUT") return alphaPanelSettingsPut(req, env);
+  if (p === "/api/notifications" && req.method === "GET") return alphaNotifications(req, env);
+  if (p === "/api/notifications/read-all" && req.method === "POST") return alphaNotificationsReadAll(req, env);
+  const alphaNotifMatch=p.match(/^\/api\/notifications\/([^/]+)\/read$/);
+  if(alphaNotifMatch && req.method==="POST") return alphaNotificationRead(req,env,alphaNotifMatch[1]);
+
   return json({error:"Not found"},404);
 }
 
@@ -383,23 +428,8 @@ async function alphaSubscriptionBulk(req, env) {
 }
 
 
-    if (path === "/api/subscriptions/advanced" && req.method === "GET")
-      return alphaSubscriptionAdvanced(req, env);
-
-    if (path === "/api/subscriptions/bulk" && req.method === "POST")
-      return alphaSubscriptionBulk(req, env);
-
-    const subRenew = path.match(/^\/api\/subscriptions\/([^/]+)\/renew$/);
-    if (subRenew && req.method === "POST")
-      return alphaSubscriptionRenew(req, env, subRenew[1]);
-
-    const subNodes = path.match(/^\/api\/subscriptions\/([^/]+)\/nodes$/);
-    if (subNodes && req.method === "GET")
-      return alphaSubscriptionNodes(env, subNodes[1]);
-    if (subNodes && req.method === "PUT")
-      return alphaSetSubscriptionNodes(req, env, subNodes[1]);
-
-
+    
+    
 async function alphaAuditList(req, env) {
   const u = new URL(req.url);
   const q = (u.searchParams.get("q") || "").trim();
@@ -454,19 +484,6 @@ async function alphaSecurityStatus(req, env) {
 }
 
 
-    if (path === "/api/audit" && req.method === "GET")
-      return alphaAuditList(req, env);
-
-    if (path === "/api/audit/clear" && req.method === "POST")
-      return alphaAuditClear(req, env);
-
-    if (path === "/api/backup/export" && req.method === "GET")
-      return alphaBackupExport(req, env);
-
-    if (path === "/api/security/status" && req.method === "GET")
-      return alphaSecurityStatus(req, env);
-
-
 async function alphaSettings(req, env) {
   const checks = [
     {key:"admin_auth", value:!!env.ALPHA_ADMIN_PASSWORD},
@@ -508,17 +525,6 @@ async function alphaAdminRoleUpdate(req, env, id) {
   if(typeof log==="function") await log(env,"admin.role.update","admin",id);
   return json({ok:true});
 }
-
-
-    if (path === "/api/settings/health" && req.method === "GET")
-      return alphaSettings(req, env);
-    if (path === "/api/admin/roles" && req.method === "GET")
-      return alphaAdminRoles(req, env);
-    if (path === "/api/admin/roles" && req.method === "POST")
-      return alphaAdminRoleCreate(req, env);
-    const adminRoleMatch = path.match(/^\/api\/admin\/roles\/([^/]+)$/);
-    if (adminRoleMatch && req.method === "PATCH")
-      return alphaAdminRoleUpdate(req, env, adminRoleMatch[1]);
 
 
 async function alphaPanelSettingsGet(req, env) {
@@ -564,17 +570,26 @@ async function alphaNotificationsReadAll(req, env) {
 }
 
 
-    if (path === "/api/panel/settings" && req.method === "GET")
-      return alphaPanelSettingsGet(req, env);
-    if (path === "/api/panel/settings" && req.method === "PUT")
-      return alphaPanelSettingsPut(req, env);
-    if (path === "/api/notifications" && req.method === "GET")
-      return alphaNotifications(req, env);
-    if (path === "/api/notifications/read-all" && req.method === "POST")
-      return alphaNotificationsReadAll(req, env);
-    const alphaNotifMatch=path.match(/^\/api\/notifications\/([^/]+)\/read$/);
-    if(alphaNotifMatch && req.method==="POST")
-      return alphaNotificationRead(req,env,alphaNotifMatch[1]);
+/* ALPHA v4.0 — real RBAC helpers */
+async function alphaGetSessionRole(req, env) {
+  const cookie = req.headers.get("Cookie") || "";
+  const m = cookie.match(/(?:^|;\s*)alpha_session=([^;]+)/);
+  if (!m) return null;
+  const sessionToken = decodeURIComponent(m[1]);
+  const session = await env.DB.prepare(
+    "SELECT s.*, a.role, a.status FROM admin_sessions s LEFT JOIN admin_users a ON a.id=s.admin_id WHERE s.token_hash=? AND s.expires_at>CURRENT_TIMESTAMP LIMIT 1"
+  ).bind(await sha(sessionToken)).first().catch(()=>null);
+  if (!session || session.status === "suspended") return null;
+  return session.role || "owner";
+}
+const ALPHA_ROLE_LEVEL = {viewer:1, operator:2, admin:3, owner:4};
+function alphaRequireRole(role, minimum) {
+  return (ALPHA_ROLE_LEVEL[role]||0) >= (ALPHA_ROLE_LEVEL[minimum]||99);
+}
+async function alphaRBAC(req, env, minimum="viewer") {
+  const role = await alphaGetSessionRole(req, env);
+  return {ok: !!role && alphaRequireRole(role, minimum), role};
+}
 
 export default {async fetch(req,env){
   const u=new URL(req.url);
