@@ -611,3 +611,68 @@ body[data-theme="light"]{
 .dashboard-grid-main{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(320px,.8fr);gap:14px}.dashboard-grid-bottom{display:grid;grid-template-columns:1.35fr 1fr 1fr;gap:14px;margin-top:14px}.glass-panel{border:1px solid rgba(110,190,255,.10)!important;border-radius:18px!important;background:linear-gradient(145deg,rgba(13,27,46,.72),rgba(6,15,28,.62))!important;box-shadow:0 16px 45px rgba(0,0,0,.15);padding:18px!important}.panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}.panel-head h2{margin:0;font-size:15px;color:#dceaf7}.panel-head p{margin:4px 0 0;color:#61788e;font-size:10px}.live-pill{font-size:10px;color:#67dfb3;border:1px solid rgba(66,221,165,.13);background:rgba(50,200,145,.06);padding:6px 9px;border-radius:99px}.live-pill i{display:inline-block;width:5px;height:5px;border-radius:50%;background:#39e6a1;box-shadow:0 0 8px #39e6a1;margin-left:4px}.traffic-visual{height:210px;display:flex;align-items:center;justify-content:center;gap:55px;position:relative}.traffic-orb{width:175px;height:175px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;border:1px solid rgba(55,211,255,.2);background:radial-gradient(circle,rgba(42,200,255,.13),rgba(18,32,51,.18) 52%,transparent 54%);box-shadow:0 0 55px rgba(30,190,255,.08),inset 0 0 40px rgba(30,190,255,.05)}.traffic-orb span{font-size:11px;color:#6f859a}.traffic-orb strong{font-size:31px;color:#eaf7ff}.traffic-orb small{color:#5fcff0}.traffic-bars{width:min(48%,390px);height:150px;display:flex;align-items:end;gap:7px}.traffic-bars i{flex:1;border-radius:7px 7px 2px 2px;background:linear-gradient(180deg,rgba(49,216,255,.75),rgba(91,99,255,.18));box-shadow:0 0 15px rgba(48,203,255,.06);min-height:14px}.traffic-note{display:flex;justify-content:space-between;border-top:1px solid rgba(120,180,220,.08);padding-top:12px;color:#60768b;font-size:10px}.traffic-note b{color:#86dff6}.system-panel .service-row{display:grid;grid-template-columns:38px 1fr auto;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid rgba(120,180,220,.06)}.service-row:last-child{border-bottom:0}.service-icon{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:rgba(60,150,220,.08);border:1px solid rgba(90,190,255,.10);color:#72d9ff;font-weight:800}.service-row b{display:block;font-size:11px;color:#cbdbea}.service-row small{display:block;color:#60768b;font-size:9px;margin-top:3px}.service-row strong{font-size:10px}.service-row .ok{color:#54dca9}.panel-link{background:transparent!important;border:0!important;color:#60c8f0!important;font-size:10px!important;padding:3px!important}.glass-table .dash-row{display:grid;grid-template-columns:1.2fr .7fr .55fr .8fr;gap:12px;align-items:center;padding:11px 4px;border-bottom:1px solid rgba(120,180,220,.06);font-size:10px;color:#8499ad}.glass-table .dash-row:last-child{border-bottom:0}.dash-row b{display:block;color:#d6e5f1}.dash-row small{display:block;color:#596f84;font-size:9px;margin-top:2px}.status-chip{display:inline-flex;padding:4px 7px;border-radius:99px;font-size:9px;background:rgba(56,220,163,.07);color:#5ce0ae;border:1px solid rgba(56,220,163,.12)}.status-chip.warn{color:#f3c36e;background:rgba(243,195,110,.07);border-color:rgba(243,195,110,.12)}.node-list .node-row-glass{display:grid;grid-template-columns:8px 1fr auto;gap:9px;align-items:center;padding:11px 2px;border-bottom:1px solid rgba(120,180,220,.06)}.node-row-glass:last-child{border-bottom:0}.node-dot-glass{width:7px;height:7px;border-radius:50%;background:#39e6a1;box-shadow:0 0 9px #39e6a1}.node-dot-glass.warn{background:#f0bf60;box-shadow:0 0 9px #f0bf60}.node-row-glass b{display:block;font-size:10px;color:#cbdbea}.node-row-glass small{display:block;color:#61778d;font-size:9px;margin-top:3px}.node-row-glass strong{font-size:9px;color:#59dcae}.node-row-glass strong.warn{color:#efc46f}.event-list .event-row{display:flex;gap:10px;padding:11px 2px;border-bottom:1px solid rgba(120,180,220,.06)}.event-row:last-child{border-bottom:0}.event-icon{width:7px;height:7px;border-radius:50%;margin-top:5px;background:#45d8ff;box-shadow:0 0 9px #45d8ff;flex:0 0 auto}.event-icon.green{background:#39e6a1;box-shadow:0 0 9px #39e6a1}.event-icon.purple{background:#a88dff;box-shadow:0 0 9px #a88dff}.event-row b{display:block;font-size:10px;color:#cbdbea}.event-row small{display:block;color:#60768b;font-size:9px;margin-top:3px}.empty-state{padding:24px 8px;text-align:center;color:#5d7388;font-size:10px}
 @media(max-width:1100px){.glass-stats{grid-template-columns:repeat(2,1fr)}.dashboard-grid-main,.dashboard-grid-bottom{grid-template-columns:1fr}.dashboard-grid-bottom{grid-template-columns:1fr 1fr}.wide-panel{grid-column:1/-1}}
 @media(max-width:760px){.glass-dashboard{padding:16px!important}.glass-header{padding:0 15px!important}.header-search{min-width:0;width:42px;font-size:0;justify-content:center}.header-search kbd{display:none}.header-user>div:not(.avatar){display:none}.glass-hero{padding:20px;min-height:170px;align-items:flex-start;flex-direction:column;gap:20px}.hero-copy h1{font-size:25px!important}.hero-meta{gap:10px;flex-wrap:wrap}.hero-actions{width:100%}.hero-actions button{flex:1}.glass-stats{grid-template-columns:1fr 1fr;gap:10px}.stat-card{min-height:92px;padding:13px!important}.stat-card strong{font-size:21px}.stat-mark{display:none}.traffic-visual{height:auto;padding:10px 0 20px;gap:20px;flex-direction:column}.traffic-bars{width:90%;height:100px}.traffic-orb{width:145px;height:145px}.dashboard-grid-bottom{grid-template-columns:1fr}.glass-table{overflow-x:auto}.glass-table .dash-row{min-width:560px}.app>aside{width:76px!important}.app>aside .brand span,.app>aside nav button:not(:first-child){font-size:0}.app>aside nav button{justify-content:center}.side-profile,.side-status,.app>aside footer{display:none}.app>main{margin-right:76px!important}.brand{justify-content:center!important}.brand b{margin:0!important}.app>aside nav button:first-child{font-size:0}.app>aside nav button:first-child::before{content:'⌂';font-size:18px}.app>aside nav button[data-p=users]::before{content:'♙';font-size:18px}.app>aside nav button[data-p=nodes]::before{content:'◇';font-size:18px}.app>aside nav button[data-p=subscriptions]::before{content:'▣';font-size:18px}.app>aside nav button[data-p=traffic]::before{content:'◫';font-size:18px}.app>aside nav button[data-p=activity]::before{content:'◌';font-size:18px}.app>aside nav button[data-p=settings]::before{content:'⚙';font-size:18px}.glass-header{height:62px!important}}
+
+/* =========================================================
+   ALPHA v4.3 — Glass Responsive Repair
+   Real mobile layout while preserving the PC-style control center.
+   ========================================================= */
+html,body{width:100%;min-width:0!important;max-width:100%;overflow-x:hidden!important}
+body{position:relative}
+.auth,#login.auth,#installer.auth{width:100%!important;min-width:0!important;max-width:100vw!important;min-height:100dvh!important;overflow:hidden!important;padding:20px!important}
+.auth-card,.installer-card{width:min(430px,calc(100vw - 32px))!important;max-width:430px!important;min-width:0!important;margin:0 auto!important}
+.app{display:flex!important;flex-direction:row!important;width:100%!important;min-width:0!important;max-width:100vw!important;overflow:hidden!important}
+.app>aside{flex:0 0 245px!important;width:245px!important;min-width:245px!important;max-width:245px!important}
+.app>main{flex:1 1 auto!important;width:auto!important;min-width:0!important;max-width:none!important;margin:0!important;overflow-x:hidden!important}
+.page,.glass-dashboard{width:100%!important;min-width:0!important;max-width:1400px!important;overflow:visible!important}
+.glass-dashboard{margin:0 auto!important}
+.table,.table-wrap,.glass-table{max-width:100%!important}
+@media(max-width:900px){
+.app>aside{flex-basis:82px!important;width:82px!important;min-width:82px!important;max-width:82px!important;padding:12px 8px!important}
+.app>aside .brand{justify-content:center!important;margin-bottom:18px!important}
+.app>aside .brand>span,.app>aside .side-profile,.app>aside .side-status,.app>aside footer{display:none!important}
+.app>aside .brand>b{display:grid!important;margin:0!important}
+.app>aside nav{gap:7px!important}
+.app>aside nav button{width:100%!important;min-height:48px!important;display:grid!important;place-items:center!important;padding:8px!important;font-size:0!important;text-align:center!important}
+.app>aside nav button::before{font-size:18px!important;line-height:1!important}
+.app>aside nav button[data-p=dashboard]::before{content:'⌂'}
+.app>aside nav button[data-p=users]::before{content:'♙'}
+.app>aside nav button[data-p=nodes]::before{content:'◇'}
+.app>aside nav button[data-p=subscriptions]::before{content:'▣'}
+.app>aside nav button[data-p=traffic]::before{content:'◫'}
+.app>aside nav button[data-p=activity]::before{content:'◌'}
+.app>aside nav button[data-p=settings]::before{content:'⚙'}
+.glass-header{width:100%!important;padding:0 14px!important}
+.header-search{min-width:42px!important;width:42px!important;flex:0 0 42px!important}
+.header-search span,.header-search kbd{display:none!important}
+.header-actions{min-width:0!important}.header-user>div:not(.avatar){display:none!important}
+.glass-dashboard{padding:16px!important}.glass-hero{width:100%!important;padding:20px!important}
+.hero-copy,.hero-actions{max-width:100%!important}
+.glass-stats{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+.dashboard-grid-main,.dashboard-grid-bottom{grid-template-columns:minmax(0,1fr)!important}
+.wide-panel{grid-column:auto!important}
+.traffic-visual{width:100%!important;gap:16px!important}.traffic-bars{width:100%!important;max-width:100%!important}
+.glass-table{overflow-x:auto!important;-webkit-overflow-scrolling:touch}.glass-table .dash-row{min-width:520px!important}
+}
+@media(max-width:560px){
+.auth{padding:14px!important}.auth-card,.installer-card{width:100%!important;padding:22px!important}
+.app>aside{flex-basis:64px!important;width:64px!important;min-width:64px!important;max-width:64px!important;padding:10px 5px!important}
+.app>main{min-width:0!important}
+.glass-header{height:58px!important;min-height:58px!important;padding:0 10px!important}
+.header-actions{gap:6px!important}.icon-btn{width:36px!important;height:36px!important}.avatar{width:34px!important;height:34px!important}
+.glass-dashboard{padding:10px!important}.glass-hero{min-height:0!important;padding:17px!important;border-radius:17px!important;gap:16px!important}
+.hero-copy h1{font-size:22px!important;line-height:1.5!important}.hero-copy p{font-size:11px!important;line-height:1.9!important}.hero-meta{font-size:9px!important;line-height:1.8!important}
+.hero-actions{display:grid!important;grid-template-columns:1fr 1fr!important;width:100%!important}.hero-actions button{min-width:0!important;padding:0 9px!important;font-size:10px!important}
+.glass-stats{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important;margin:10px 0!important}
+.stat-card{min-height:88px!important;padding:11px!important;gap:8px!important;border-radius:15px!important}
+.stat-icon{width:34px!important;height:34px!important;border-radius:10px!important;font-size:15px!important;flex:0 0 34px}.stat-card small{font-size:9px!important}.stat-card strong{font-size:19px!important;margin:2px 0!important}.stat-card span{font-size:8px!important}
+.dashboard-grid-main,.dashboard-grid-bottom{gap:9px!important}.glass-panel{padding:13px!important;border-radius:15px!important}.panel-head{margin-bottom:10px!important}.panel-head h2{font-size:13px!important}.panel-head p{font-size:9px!important}
+.traffic-orb{width:130px!important;height:130px!important}.traffic-orb strong{font-size:27px!important}.traffic-bars{height:85px!important;gap:4px!important}.traffic-note{font-size:8px!important;gap:8px!important;flex-wrap:wrap}
+.service-row{grid-template-columns:34px minmax(0,1fr) auto!important;gap:8px!important}.service-row b{font-size:10px!important}.service-row small{font-size:8px!important}.service-row strong{font-size:8px!important}
+.page:not(.glass-dashboard){padding:14px 10px 24px!important}.head h1{font-size:21px!important}.head .primary{width:auto!important;max-width:100%!important}.head-actions{max-width:100%!important;flex-wrap:wrap!important}
+.alpha-sub-stats,.alpha-security-grid,.alpha-settings-grid{grid-template-columns:1fr!important}
+table{min-width:620px!important}.table,.table-wrap{overflow-x:auto!important;max-width:100%!important}
+}
+@media(max-width:380px){
+.app>aside{flex-basis:58px!important;width:58px!important;min-width:58px!important;max-width:58px!important}
+.glass-header{padding:0 7px!important}.glass-dashboard{padding:8px!important}.glass-stats{gap:6px!important}.stat-card{padding:9px!important}.stat-icon{display:none!important}.stat-card strong{font-size:17px!important}.hero-actions{grid-template-columns:1fr!important}
+}
