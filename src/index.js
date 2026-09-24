@@ -34,7 +34,7 @@ async function cfJson(token, path, init={}) {
 
 async function api(req,env){
   const u=new URL(req.url), p=u.pathname;
-  if(p==="/api/health")return json({ok:true,name:"ALPHA",version:"5.3.0"});
+  if(p==="/api/health")return json({ok:true,name:"ALPHA",version:"6.0.0"});
   if(p==="/api/auth/login"&&req.method==="POST"){
     const b=await req.json().catch(()=>({}));
     if(!env.ALPHA_ADMIN_PASSWORD)return json({error:"ALPHA_ADMIN_PASSWORD is not configured"},503);
@@ -170,6 +170,7 @@ async function api(req,env){
   if (p === "/api/backup/export" && req.method === "GET") return alphaBackupExport(req, env);
   if (p === "/api/security/status" && req.method === "GET") return alphaSecurityStatus(req, env);
 
+  if (p === "/api/operations/summary" && req.method === "GET") return alphaOperationsSummary(req, env);
   if (p === "/api/settings/health" && req.method === "GET") return alphaSettings(req, env);
   if (p === "/api/admin/roles" && req.method === "GET") return alphaAdminRoles(req, env);
   if (p === "/api/admin/roles" && req.method === "POST") return alphaAdminRoleCreate(req, env);
@@ -560,6 +561,53 @@ async function alphaSecurityStatus(req, env) {
 
 
 
+
+async function alphaOperationsSummary(req, env) {
+  const now = Date.now();
+  const soon = now + 7 * 86400000;
+  const [
+    expiring,
+    exhausted,
+    suspended,
+    offline,
+    staleNodes,
+    unread,
+    snapshot
+  ] = await Promise.all([
+    env.DB.prepare("SELECT COUNT(*) c FROM users WHERE expires_at IS NOT NULL AND CAST(expires_at AS INTEGER)>? AND CAST(expires_at AS INTEGER)<=? AND status!='disabled'").bind(now, soon).first(),
+    env.DB.prepare("SELECT COUNT(*) c FROM users WHERE quota_gb>0 AND used_gb>=quota_gb AND status='active'").first(),
+    env.DB.prepare("SELECT COUNT(*) c FROM users WHERE status='suspended'").first(),
+    env.DB.prepare("SELECT COUNT(*) c FROM nodes WHERE status='offline'").first(),
+    env.DB.prepare("SELECT COUNT(*) c FROM nodes WHERE updated_at<? AND status!='online'").bind(now-15*60*1000).first(),
+    env.DB.prepare("SELECT COUNT(*) c FROM panel_notifications WHERE is_read=0").first(),
+    env.DB.prepare("SELECT captured_at,total_used_gb FROM traffic_snapshots ORDER BY captured_at DESC LIMIT 1").first()
+  ]);
+  const items = [
+    {key:"offline_nodes", level:"danger", title:"Nodeهای آفلاین", count:Number(offline?.c||0), target:"nodes"},
+    {key:"expiring_users", level:"warning", title:"انقضای نزدیک", count:Number(expiring?.c||0), target:"users"},
+    {key:"quota_exhausted", level:"warning", title:"سهمیه تمام‌شده", count:Number(exhausted?.c||0), target:"users"},
+    {key:"suspended_users", level:"info", title:"کاربران معلق", count:Number(suspended?.c||0), target:"users"},
+    {key:"unread_notifications", level:"info", title:"اعلان خوانده‌نشده", count:Number(unread?.c||0), target:"security"}
+  ].filter(x=>x.count>0);
+  return json({
+    generated_at: now,
+    items,
+    totals: {
+      expiring_users:Number(expiring?.c||0),
+      quota_exhausted:Number(exhausted?.c||0),
+      suspended_users:Number(suspended?.c||0),
+      offline_nodes:Number(offline?.c||0),
+      stale_nodes:Number(staleNodes?.c||0),
+      unread_notifications:Number(unread?.c||0)
+    },
+    traffic_snapshot: snapshot ? {
+      captured_at:Number(snapshot.captured_at||0),
+      total_used_gb:Number(snapshot.total_used_gb||0),
+      age_minutes: Math.max(0, Math.round((now-Number(snapshot.captured_at||now))/60000))
+    } : null
+  });
+}
+
 async function alphaSettings(req, env) {
   const checks = [
     {key:"admin_auth", value:!!env.ALPHA_ADMIN_PASSWORD},
@@ -567,7 +615,7 @@ async function alphaSettings(req, env) {
     {key:"pwa", value:true},
     {key:"audit", value:true}
   ];
-  return json({version:"3.1.0",checks,generated_at:Date.now()});
+  return json({version:"6.0.0",checks,generated_at:Date.now()});
 }
 async function alphaAdminRoles(req, env) {
   const r=await env.DB.prepare(
