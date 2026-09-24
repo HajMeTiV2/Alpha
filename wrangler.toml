@@ -9,6 +9,7 @@ directory = "./public"
 binding = "DB"
 database_name = "alpha-db"
 database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+migrations_dir = "migrations"
 
 [vars]
 ALPHA_CHANNEL = "@V2rayTun0"

@@ -1,18 +1,18 @@
-# ALPHA PANEL
+# ALPHA v2.0
+نسخه دوم مستقل Alpha بر پایه Cloudflare Workers + D1.
 
-پنل مستقل و توسعه‌پذیر ALPHA بر پایه Cloudflare Workers و D1.
+```bash
+npm install
+npx wrangler login
+npx wrangler d1 create alpha-db
+```
 
-- کانال: `@V2rayTun0`
-- سازنده: `@Mehtif`
-- GitHub: `HajMeTiV2/Alpha`
+شناسه D1 را داخل `wrangler.toml` بگذار، سپس:
 
-## شروع سریع
+```bash
+npx wrangler secret put ALPHA_ADMIN_PASSWORD
+npm run db:migrate:remote
+npm run deploy
+```
 
-1. Node.js را نصب کنید.
-2. `npm install`
-3. یک دیتابیس D1 بسازید.
-4. شناسه دیتابیس را در `wrangler.toml` قرار دهید.
-5. Migration را با Wrangler اجرا کنید.
-6. با `npm run dev` اجرا کنید.
-
-کلیدهای محرمانه را Commit نکنید.
+توکن Cloudflare یا رمز را داخل GitHub و سورس کد قرار نده.
