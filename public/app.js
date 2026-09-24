@@ -16,35 +16,40 @@ function copyInstall(){navigator.clipboard?.writeText(`npm install
 npx wrangler d1 migrations apply alpha-db --remote
 npx wrangler secret put ALPHA_ADMIN_PASSWORD
 npx wrangler deploy`)}
-async function dash(){try{let d=await api("/api/dashboard");$("users").textContent=d.users;$("active").textContent=d.activeUsers;$("nodes").textContent=d.nodes;$("traffic").textContent=Number(d.trafficGb).toFixed(1)+" GB";$("activity").textContent=d.activity24h;$("tv").textContent=Number(d.trafficGb).toFixed(1)+" GB";$("tb").style.width=Math.min(100,d.trafficGb)+"%"}catch{}}
-async function loadUsers(){us=await api("/api/users");renderUsers()}
-function renderUsers(){let q=($("search").value||"").toLowerCase();$("ut").innerHTML=us.filter(x=>x.username.toLowerCase().includes(q)).map(x=>`<tr><td>${esc(x.username)}</td><td>${esc(x.protocol)}</td><td>${esc(x.country)}</td><td>${x.used_gb}/${x.quota_gb} GB</td><td>${esc(x.status)}</td><td><button onclick="profile(${x.id})">جزئیات</button> <button onclick="toggle(${x.id},'${x.status==="active"?"disabled":"active"}')">${x.status==="active"?"غیرفعال":"فعال"}</button> <button onclick="del(${x.id})">حذف</button></td></tr>`).join("")||"<tr><td colspan=6>کاربری وجود ندارد</td></tr>"}
-async function toggle(id,s){await api("/api/users/"+id,{method:"PATCH",body:JSON.stringify({status:s})});loadUsers()}
-async function del(id){if(confirm("حذف شود؟")){await api("/api/users/"+id,{method:"DELETE"});loadUsers()}}
-function openModal(){$("modal").showModal()}
-async function createUser(e){e.preventDefault();try{await api("/api/users",{method:"POST",body:JSON.stringify({username:$("un").value,protocol:$("up").value,quota_gb:+$("uq").value,country:$("uc").value,device_limit:+$("ud").value})});$("modal").close();e.target.reset();loadUsers()}catch(x){alert(x.message)}}
-async function profile(id){try{const d=await api("/api/users/"+id),u=d.user,sub=location.origin+"/sub/"+u.subscription_token;const b=$("profile-body");b.innerHTML=`<h2>${esc(u.username)}</h2><div class="profile-grid"><div><small>Protocol</small><b>${esc(u.protocol)}</b></div><div><small>Quota</small><b>${u.used_gb}/${u.quota_gb} GB</b></div><div><small>Devices</small><b>${u.device_limit}</b></div><div><small>Status</small><b>${esc(u.status)}</b></div></div><label>لینک اشتراک<input id="sub-link" readonly value="${esc(sub)}"></label><div id="qrcode" class="qr"></div><button class="primary wide" onclick="copyText('sub-link')">کپی لینک اشتراک</button><h3>کانفیگ‌ها</h3><pre id="configs">در حال دریافت...</pre>`;$("profile-modal").showModal();const r=await fetch(sub+"?format=json");const x=await r.json();const raw=await fetch(sub);const cfg=await raw.json();$("configs").textContent=(cfg.configs||[]).join("\\n")||"برای این کاربر هنوز Node فعالی ثبت نشده است.";new QRCode($("qrcode"),{text:sub,width:190,height:190})}catch(e){alert(e.message)}}
-function copyText(id){const x=$(id);x.select();navigator.clipboard?.writeText(x.value)}
-async function nodes(){let x=await api("/api/nodes");$("nl").innerHTML=x.length?x.map(n=>`<div class="node-row"><div><b>${esc(n.name)}</b><small>${esc(n.country)} · ${esc(n.protocol)}</small></div><span>${esc(n.status)}</span></div>`).join(""):"هنوز نودی ثبت نشده است."}
-function openNodeModal(){$("node-modal").classList.remove("hidden")}
-async function saveNode(){try{await api("/api/nodes",{method:"POST",body:JSON.stringify({name:$("n-name").value,country:$("n-country").value,endpoint:$("n-endpoint").value,protocol:$("n-protocol").value})});closeModal("node-modal");await nodes();dash()}catch(e){alert(e.message)}}
-async function loadSubscriptions(){const r=await api("/api/subscriptions");$("subs-list").innerHTML=(r.items||[]).map(x=>`<tr><td>${esc(x.username)}</td><td>${esc(x.protocol)}</td><td>${x.quota_gb} GB</td><td>${x.used_gb} GB</td><td>${x.device_limit}</td><td>${esc(x.status)}</td><td><button onclick="profile('${x.id}')">جزئیات</button> <button class="danger" onclick="removeSub('${x.id}')">حذف</button></td></tr>`).join("")||"<tr><td colspan=7>اشتراکی وجود ندارد</td></tr>"}
-function openSubModal(){$("sub-modal").classList.remove("hidden")}
-async function saveSub(){try{await api("/api/subscriptions",{method:"POST",body:JSON.stringify({username:$("s-user").value,quota_gb:$("s-quota").value,device_limit:$("s-devices").value,protocol:$("s-protocol").value})});closeModal("sub-modal");await loadSubscriptions()}catch(e){alert(e.message)}}
-async function removeSub(id){if(!confirm("حذف این اشتراک؟"))return;await api("/api/subscriptions/"+id,{method:"DELETE"});await loadSubscriptions()}
-async function activity(){let x=await api("/api/activity");$("al").innerHTML=x.map(n=>`<p>${esc(n.action)} — ${esc(n.details||"")} <small>${esc(n.created_at)}</small></p>`).join("")||"فعالیتی ثبت نشده است."}
-function closeModal(id){$(id).classList.add("hidden")}
-function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]))}
-document.querySelectorAll("nav button[data-p]").forEach(b=>b.onclick=()=>{let p=b.dataset.p;document.querySelectorAll(".page").forEach(x=>x.classList.add("hidden"));$(p==="users"?"users-page":p+"-page").classList.remove("hidden");if(p==="users")loadUsers();if(p==="nodes")nodes();if(p==="subscriptions")loadSubscriptions();if(p==="activity")activity();if(p==="traffic")dash()})
-async function boot(){try{await api("/api/dashboard");$("login").classList.add("hidden");$("app").classList.remove("hidden");dash()}catch{try{await api("/api/health");show("login")}catch{$("login").classList.remove("hidden")}}}
-boot()
-
-let proUsers=[], selectedUsers=new Set(), userSearchTimer;
-function debouncedUsers(){clearTimeout(userSearchTimer);userSearchTimer=setTimeout(loadProUsers,250)}
-async function loadProUsers(){
-  const q=encodeURIComponent($("user-search")?.value||""), st=encodeURIComponent($("user-status")?.value||""), sort=encodeURIComponent($("user-sort")?.value||"created_at");
-  const r=await api(`/api/users/advanced?q=${q}&status=${st}&sort=${sort}`);
-  proUsers=r.items||[]; renderProUsers();
+async function dash(){
+  try{
+    const [d,users,nodesList,acts]=await Promise.all([
+      api("/api/dashboard"),
+      api("/api/users"),
+      api("/api/nodes"),
+      api("/api/activity")
+    ]);
+    $("users").textContent=d.users;
+    $("active").textContent=d.activeUsers;
+    $("nodes").textContent=d.nodes;
+    const traffic=Number(d.trafficGb||0);
+    $("traffic").textContent=traffic.toFixed(1)+" GB";
+    $("activity").textContent=d.activity24h;
+    $("tv").textContent=traffic.toFixed(1)+" GB";
+    $("tb").style.width=Math.min(100,traffic)+"%";
+    const totalEl=$("dash-traffic-total"); if(totalEl) totalEl.textContent=traffic.toFixed(1);
+    const bars=$("dash-traffic-bars");
+    if(bars){
+      const vals=(users||[]).slice(0,10).map(x=>Number(x.used_gb||0));
+      const max=Math.max(1,...vals);
+      bars.innerHTML=(vals.length?vals:[0]).map(v=>`<i style="height:${Math.max(14,Math.round(v/max*100))}%" title="${v.toFixed(1)} GB"></i>`).join("");
+    }
+    const recent=(users||[]).slice(0,5);
+    const du=$("dash-users");
+    if(du) du.innerHTML=recent.length?`<div class="dash-row"><span>کاربر</span><span>پروتکل</span><span>وضعیت</span><span>مصرف</span></div>`+recent.map(u=>`<div class="dash-row"><span><b>${esc(u.username)}</b><small>${esc(u.country||"بدون کشور")}</small></span><span>${esc(u.protocol||"—")}</span><span><i class="status-chip ${u.status!=="active"?"warn":""}">${esc(u.status||"unknown")}</i></span><span>${Number(u.used_gb||0).toFixed(1)} / ${Number(u.quota_gb||0).toFixed(1)} GB</span></div>`).join(""):"<div class='empty-state'>هنوز کاربری ثبت نشده است.</div>";
+    const dn=$("dash-nodes");
+    const nl=(nodesList||[]).slice(0,5);
+    if(dn) dn.innerHTML=nl.length?nl.map(n=>`<div class="node-row-glass"><i class="node-dot-glass ${n.status==="offline"?"warn":""}"></i><div><b>${esc(n.name)}</b><small>${esc(n.protocol||"—")} · ${n.latency_ms!=null?Number(n.latency_ms).toFixed(0)+" ms": "latency —"}</small></div><strong class="${n.status==="offline"?"warn":""}">${esc(n.status||"unknown")}</strong></div>`).join(""):"<div class='empty-state'>هنوز نودی ثبت نشده است.</div>";
+    const da=$("dash-activity");
+    const al=(acts||[]).slice(0,5);
+    if(da) da.innerHTML=al.length?al.map((a,i)=>`<div class="event-row"><i class="event-icon ${i%3===1?"green":i%3===2?"purple":""}"></i><div><b>${esc(a.action||"رویداد")}</b><small>${esc(a.details||"بدون جزئیات")} · ${esc(a.created_at||"")}</small></div></div>`).join(""):"<div class='empty-state'>فعالیتی ثبت نشده است.</div>";
+    const up=$("dash-updated"); if(up) up.textContent=new Date().toLocaleTimeString("fa-IR",{hour:"2-digit",minute:"2-digit"});
+  }catch(e){console.warn("dashboard",e)}
 }
 function renderProUsers(){
   const el=$("pro-users-list"); if(!el)return;
@@ -388,3 +393,13 @@ function alphaToggleNotifications(){document.getElementById("alpha-notification-
 async function alphaReadNotification(id){await api(`/api/notifications/${encodeURIComponent(id)}/read`,{method:"POST"});alphaLoadNotifications()}
 async function alphaReadAllNotifications(){await api("/api/notifications/read-all",{method:"POST"});alphaLoadNotifications()}
 document.addEventListener("DOMContentLoaded",()=>{alphaLoadUISettings();alphaLoadNotifications()});
+
+
+async function alphaRunReleaseCheck(){
+  const r=await api("/api/v4/health").catch(()=>null);
+  const rb=document.getElementById("alpha-rbac-state"), ap=document.getElementById("alpha-api-state");
+  if(!r){if(rb)rb.textContent="Unavailable";if(ap)ap.textContent="Failed";return}
+  if(rb)rb.textContent=r.rbac?`Active (${r.role})`:"Session/role not linked";
+  if(ap)ap.textContent=r.ok?"Healthy":"Failed";
+}
+document.addEventListener("DOMContentLoaded",()=>{alphaRunReleaseCheck()});
