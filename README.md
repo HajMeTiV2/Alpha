@@ -95,3 +95,15 @@ Adds configurable theme/accent/compact mode, persistent panel settings, and noti
 
 Migration:
 `npx wrangler d1 migrations apply alpha-db --remote`
+
+
+## Alpha v5.3 — Professional hardening
+- Wired the advanced user-management and node-monitoring endpoints used by the UI.
+- Added DB-backed login throttling after repeated failed attempts.
+- Removed admin session tokens from backup exports.
+- Added node endpoint validation before worker-side health checks.
+- Added security-oriented `no-store` headers to public subscription responses.
+- Added migration `0011_auth_rate_limits.sql`.
+
+After deployment run:
+`npx wrangler d1 migrations apply alpha-db --remote`
