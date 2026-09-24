@@ -1,4 +1,13 @@
 const enc = new TextEncoder();
+function withSecurityHeaders(response){
+  const h=new Headers(response.headers);
+  h.set("X-Content-Type-Options","nosniff");
+  h.set("X-Frame-Options","DENY");
+  h.set("Referrer-Policy","strict-origin-when-cross-origin");
+  h.set("Permissions-Policy","camera=(), microphone=(), geolocation=()");
+  return new Response(response.body,{status:response.status,statusText:response.statusText,headers:h});
+}
+
 const json = (d,s=200,h={}) => new Response(JSON.stringify(d), {
   status:s, headers:{"content-type":"application/json; charset=utf-8",...h}
 });
@@ -9,7 +18,7 @@ async function auth(req,env){
   if(!t)return false;
   return !!await env.DB.prepare("SELECT id FROM admin_sessions WHERE token_hash=? AND expires_at>CURRENT_TIMESTAMP").bind(await sha(t)).first();
 }
-async function log(env,a,d=""){await env.DB.prepare("INSERT INTO activity_logs(action,actor,details) VALUES(?,?,?)").bind(a,"admin",d).run()}
+async function log(env,a,actor="admin",d=""){await env.DB.prepare("INSERT INTO activity_logs(action,actor,details) VALUES(?,?,?)").bind(a,actor,d).run()}
 
 async function cfFetch(token, path, init={}) {
   const headers = new Headers(init.headers || {});
@@ -25,11 +34,25 @@ async function cfJson(token, path, init={}) {
 
 async function api(req,env){
   const u=new URL(req.url), p=u.pathname;
-  if(p==="/api/health")return json({ok:true,name:"ALPHA",version:"5.0.0"});
+  if(p==="/api/health")return json({ok:true,name:"ALPHA",version:"5.3.0"});
   if(p==="/api/auth/login"&&req.method==="POST"){
     const b=await req.json().catch(()=>({}));
     if(!env.ALPHA_ADMIN_PASSWORD)return json({error:"ALPHA_ADMIN_PASSWORD is not configured"},503);
-    if(b.password!==env.ALPHA_ADMIN_PASSWORD){await log(env,"login_failed");return json({error:"Invalid credentials"},401)}
+    const password=String(b.password||"");
+    const ip=req.headers.get("CF-Connecting-IP")||"unknown";
+    try{
+      const rate=await env.DB.prepare("SELECT attempts,blocked_until FROM auth_rate_limits WHERE ip=?").bind(ip).first();
+      if(rate?.blocked_until && Number(rate.blocked_until)>Date.now()) return json({error:"Too many login attempts. Try again later."},429);
+      if(password!==env.ALPHA_ADMIN_PASSWORD){
+        const attempts=Number(rate?.attempts||0)+1;
+        const blockedUntil=attempts>=8?Date.now()+15*60*1000:0;
+        await env.DB.prepare("INSERT INTO auth_rate_limits(ip,attempts,blocked_until,updated_at) VALUES(?,?,?,?) ON CONFLICT(ip) DO UPDATE SET attempts=excluded.attempts,blocked_until=excluded.blocked_until,updated_at=excluded.updated_at")
+          .bind(ip,attempts,blockedUntil,Date.now()).run();
+        await log(env,"login_failed","admin",`ip:${ip}`);
+        return json({error:"Invalid credentials"},401);
+      }
+      await env.DB.prepare("DELETE FROM auth_rate_limits WHERE ip=?").bind(ip).run();
+    }catch(_){ /* migration may not be applied yet; continue with normal auth */ }
     const t=token(), h=await sha(t), exp=new Date(Date.now()+86400000).toISOString();
     await env.DB.prepare("DELETE FROM admin_sessions WHERE expires_at<=CURRENT_TIMESTAMP").run();
     await env.DB.prepare("INSERT INTO admin_sessions(id,token_hash,expires_at) VALUES(?,?,?)").bind(crypto.randomUUID(),h,exp).run();
@@ -41,10 +64,8 @@ async function api(req,env){
     if(t)await env.DB.prepare("DELETE FROM admin_sessions WHERE token_hash=?").bind(await sha(t)).run();
     return json({ok:true},200,{"Set-Cookie":"alpha_session=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0"});
   }
-  if(p.startsWith("/api/")&&!(p==="/api/health"||p==="/api/auth/login"||p==="/api/auth/logout")&&!await auth(req,env))return json({error:"Unauthorized"},401);
-
-  // Installer: the supplied Cloudflare API token is never stored in D1,
-  // logs, cookies, or environment variables. It exists only for this request.
+  // Installer is intentionally public: it is used before the first admin
+  // session exists. The supplied Cloudflare token is used only for the request.
   if(p==="/api/installer/check" && req.method==="POST"){
     const b=await req.json().catch(()=>({}));
     const t=String(b.token||"").trim();
@@ -78,6 +99,8 @@ async function api(req,env){
       next:"Put the returned database_id into wrangler.toml, then run the migration and deploy commands shown in the installer."
     });
   }
+
+  if(p.startsWith("/api/")&&!(p==="/api/health"||p==="/api/auth/login"||p==="/api/auth/logout"||p==="/api/installer/check"||p==="/api/installer/provision-d1")&&!await auth(req,env))return json({error:"Unauthorized"},401);
 
   if(p==="/api/dashboard"){
     const [a,b,c,d,e]=await Promise.all([
@@ -120,6 +143,18 @@ async function api(req,env){
   }
   if(p==="/api/activity")return json((await env.DB.prepare("SELECT * FROM activity_logs ORDER BY id DESC LIMIT 100").all()).results||[]);
 
+  // Professional user management endpoints
+  if(p==="/api/users/advanced" && req.method==="GET")return usersAdvanced(req,env);
+  if(p==="/api/users/bulk" && req.method==="POST")return bulkUsers(req,env);
+  const userExtendMatch=p.match(/^\/api\/users\/([^/]+)\/extend$/);
+  if(userExtendMatch && req.method==="POST")return extendUser(req,env,userExtendMatch[1]);
+
+  // Professional node monitoring endpoints
+  if(p==="/api/nodes/stats" && req.method==="GET")return nodeStats(req,env);
+  const nodeHealthMatch=p.match(/^\/api\/nodes\/([^/]+)\/health$/);
+  if(nodeHealthMatch && req.method==="POST")return nodeMonitor(req,env,nodeHealthMatch[1]);
+  if(p==="/api/nodes/monitor" && req.method==="POST")return monitorAllNodes(req,env);
+
   if (p === "/api/subscriptions/advanced" && req.method === "GET") return alphaSubscriptionAdvanced(req, env);
   if (p === "/api/subscriptions/bulk" && req.method === "POST") return alphaSubscriptionBulk(req, env);
   const subRenew = p.match(/^\/api\/subscriptions\/([^/]+)\/renew$/);
@@ -152,17 +187,35 @@ async function api(req,env){
   return json({error:"Not found"},404);
 }
 
+function validateNodeEndpoint(value){
+  try{
+    const u=new URL(String(value||"").trim());
+    if(!["http:","https:"].includes(u.protocol)) return {ok:false,error:"Endpoint must use http or https."};
+    const host=u.hostname.toLowerCase();
+    if(host==="localhost" || host==="127.0.0.1" || host==="0.0.0.0" || host==="::1" || host.endsWith(".local")) return {ok:false,error:"Local endpoints are not allowed."};
+    if(/^10\\.|^127\\.|^169\\.254\\.|^192\\.168\\.|^172\\.(1[6-9]|2\\d|3[0-1])\\./.test(host)) return {ok:false,error:"Private IP endpoints are not allowed."};
+    return {ok:true,url:u.toString()};
+  }catch(_){return {ok:false,error:"Invalid endpoint URL."}}
+}
+
 async function createNode(req,env){
   const b=await req.json();
   if(!b.name||!b.endpoint)return json({error:"name and endpoint required"},400);
+  const endpoint=validateNodeEndpoint(b.endpoint);
+  if(!endpoint.ok)return json({error:endpoint.error},400);
   const id=token(8), now=Date.now();
   await env.DB.prepare("INSERT INTO nodes(id,name,country,endpoint,protocol,status,latency_ms,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)")
-    .bind(id,b.name,b.country||"",b.endpoint,b.protocol||"VLESS","online",null,now,now).run();
+    .bind(id,String(b.name).slice(0,120),String(b.country||"").slice(0,80),endpoint.url,b.protocol||"VLESS","unknown",null,now,now).run();
   await log(env,"node.create","admin",b.name);
   return json({ok:true,id});
 }
 async function updateNode(req,env,id){
   const b=await req.json(), now=Date.now();
+  if(b.endpoint!==undefined){
+    const endpoint=validateNodeEndpoint(b.endpoint);
+    if(!endpoint.ok)return json({error:endpoint.error},400);
+    b.endpoint=endpoint.url;
+  }
   const r=await env.DB.prepare("UPDATE nodes SET name=COALESCE(?,name),country=COALESCE(?,country),endpoint=COALESCE(?,endpoint),protocol=COALESCE(?,protocol),status=COALESCE(?,status),latency_ms=COALESCE(?,latency_ms),updated_at=? WHERE id=?")
     .bind(b.name??null,b.country??null,b.endpoint??null,b.protocol??null,b.status??null,b.latency_ms??null,now,id).run();
   if(!r.meta.changes)return json({error:"not found"},404);
@@ -198,7 +251,7 @@ async function publicSubscription(sub,env,u){
   const user=await env.DB.prepare("SELECT id,username,protocol,quota_gb,used_gb,device_limit,status,expires_at,client_uuid,subscription_token FROM users WHERE subscription_token=?").bind(sub).first();
   if(!user)return json({error:"Not found"},404);
   if(u.searchParams.get("format")==="json"){
-    return json({name:user.username,protocol:user.protocol,status:user.status,quota_gb:user.quota_gb,used_gb:user.used_gb,expires_at:user.expires_at,device_limit:user.device_limit});
+    return json({name:user.username,protocol:user.protocol,status:user.status,quota_gb:user.quota_gb,used_gb:user.used_gb,expires_at:user.expires_at,device_limit:user.device_limit},200,{"Cache-Control":"no-store"});
   }
   const nodes=(await env.DB.prepare("SELECT name,endpoint,protocol,country,status FROM nodes WHERE status!='offline' ORDER BY id DESC").all()).results||[];
   const configs=nodes.filter(n=>n.endpoint).map(n=>{
@@ -209,7 +262,7 @@ async function publicSubscription(sub,env,u){
     }
     return `${proto} ${n.endpoint}`;
   });
-  return json({name:user.username,protocol:user.protocol,status:user.status,quota_gb:user.quota_gb,used_gb:user.used_gb,expires_at:user.expires_at,device_limit:user.device_limit,configs});
+  return json({name:user.username,protocol:user.protocol,status:user.status,quota_gb:user.quota_gb,used_gb:user.used_gb,expires_at:user.expires_at,device_limit:user.device_limit,configs},200,{"Cache-Control":"no-store"});
 }
 
 
@@ -274,7 +327,9 @@ async function nodeMonitor(req,env,id){
   const started=Date.now();
   let ok=false, latency=null, error="";
   try{
-    const target=new URL(n.endpoint);
+    const endpoint=validateNodeEndpoint(n.endpoint);
+    if(!endpoint.ok) return json({error:endpoint.error},400);
+    const target=new URL(endpoint.url);
     const controller=new AbortController();
     const timer=setTimeout(()=>controller.abort(),5000);
     const r=await fetch(target.toString(),{method:"HEAD",signal:controller.signal,redirect:"manual"});
@@ -293,8 +348,10 @@ async function monitorAllNodes(req,env){
   for(const n of (r.results||[])){
     const started=Date.now(); let ok=false, err="";
     try{
+      const endpoint=validateNodeEndpoint(n.endpoint);
+      if(!endpoint.ok){ items.push({...n,status:"offline",latency_ms:null,error:endpoint.error}); continue; }
       const controller=new AbortController(); const timer=setTimeout(()=>controller.abort(),5000);
-      const res=await fetch(new URL(n.endpoint).toString(),{method:"HEAD",signal:controller.signal,redirect:"manual"});
+      const res=await fetch(endpoint.url,{method:"HEAD",signal:controller.signal,redirect:"manual"});
       clearTimeout(timer); ok=res.status<500;
     }catch(e){err=String(e?.message||e)}
     const latency=Date.now()-started, status=ok?"online":"offline";
@@ -469,8 +526,8 @@ async function alphaAuditClear(req, env) {
 }
 
 async function alphaBackupExport(req, env) {
-  const tables = ["users","nodes","activity_logs","admin_sessions","subscription_nodes"];
-  const out = {format:"ALPHA-BACKUP",version:"2.9",created_at:Date.now(),tables:{}};
+  const tables = ["users","nodes","activity_logs","subscription_nodes","admin_users","panel_settings","panel_notifications","traffic_snapshots"];
+  const out = {format:"ALPHA-BACKUP",version:"5.3",created_at:Date.now(),tables:{}};
 
   for (const table of tables) {
     try {
@@ -604,13 +661,13 @@ async function takeTrafficSnapshot(env){
 export default {
   async fetch(req,env){
     const u=new URL(req.url);
-    if(u.pathname === "/panel" || u.pathname === "/panel/") return env.ASSETS.fetch(new Request(new URL("/index.html",u),req));
+    if(u.pathname === "/panel" || u.pathname === "/panel/") return withSecurityHeaders(await env.ASSETS.fetch(new Request(new URL("/index.html",u),req)));
     if(u.pathname.startsWith("/sub/")){
       const sub=u.pathname.split("/").filter(Boolean)[1]||"";
-      return publicSubscription(sub,env,u);
+      return withSecurityHeaders(await publicSubscription(sub,env,u));
     }
-    if(u.pathname.startsWith("/api/")) return api(req,env);
-    return env.ASSETS.fetch(req);
+    if(u.pathname.startsWith("/api/")) return withSecurityHeaders(await api(req,env));
+    return withSecurityHeaders(await env.ASSETS.fetch(req));
   },
   async scheduled(event,env,ctx){ ctx.waitUntil(takeTrafficSnapshot(env)); }
 };
