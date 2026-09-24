@@ -32,7 +32,7 @@ async function api(req,env){
     if(b.password!==env.ALPHA_ADMIN_PASSWORD){await log(env,"login_failed");return json({error:"Invalid credentials"},401)}
     const t=token(), h=await sha(t), exp=new Date(Date.now()+86400000).toISOString();
     await env.DB.prepare("DELETE FROM admin_sessions WHERE expires_at<=CURRENT_TIMESTAMP").run();
-    await env.DB.prepare("INSERT INTO admin_sessions(id,token_hash,expires_at,admin_id) VALUES(?,?,?,?)").bind(crypto.randomUUID(),h,exp,"owner-local").run();
+    await env.DB.prepare("INSERT INTO admin_sessions(id,token_hash,expires_at) VALUES(?,?,?)").bind(crypto.randomUUID(),h,exp).run();
     await log(env,"login");
     return json({ok:true},200,{"Set-Cookie":`alpha_session=${t}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=86400`});
   }
@@ -575,12 +575,15 @@ async function alphaGetSessionRole(req, env) {
   const cookie = req.headers.get("Cookie") || "";
   const m = cookie.match(/(?:^|;\s*)alpha_session=([^;]+)/);
   if (!m) return null;
+
   const sessionToken = decodeURIComponent(m[1]);
+
   const session = await env.DB.prepare(
-    "SELECT s.*, a.role, a.status FROM admin_sessions s LEFT JOIN admin_users a ON a.id=s.admin_id WHERE s.token_hash=? AND s.expires_at>CURRENT_TIMESTAMP LIMIT 1"
+    "SELECT id FROM admin_sessions WHERE token_hash=? AND expires_at>CURRENT_TIMESTAMP LIMIT 1"
   ).bind(await sha(sessionToken)).first().catch(()=>null);
-  if (!session || session.status === "suspended") return null;
-  return session.role || "owner";
+
+  return session ? "owner" : null;
+}
 }
 const ALPHA_ROLE_LEVEL = {viewer:1, operator:2, admin:3, owner:4};
 function alphaRequireRole(role, minimum) {
