@@ -135,6 +135,14 @@ async function api(req,env){
   if(p==="/api/subscriptions"&&req.method==="GET")return subscriptions(req,env);
   if(p==="/api/subscriptions"&&req.method==="POST")return createSubscription(req,env);
   if(p.startsWith("/api/subscriptions/")&&req.method==="DELETE")return deleteSubscription(req,env,p.split("/").pop());
+  // Professional user management endpoints must be matched BEFORE
+  // the generic /api/users/:id GET route. Otherwise "advanced" is treated
+  // as a user id and the panel receives a 404.
+  if(p==="/api/users/advanced" && req.method==="GET")return usersAdvanced(req,env);
+  if(p==="/api/users/bulk" && req.method==="POST")return bulkUsers(req,env);
+  const userExtendMatch=p.match(/^\/api\/users\/([^/]+)\/extend$/);
+  if(userExtendMatch && req.method==="POST")return extendUser(req,env,userExtendMatch[1]);
+
   if(p.startsWith("/api/users/")&&req.method==="GET"){
     const id=p.split("/").pop();
     const urow=await env.DB.prepare("SELECT id,username,protocol,country,quota_gb,used_gb,device_limit,status,expires_at,created_at,client_uuid,subscription_token FROM users WHERE id=?").bind(id).first();
@@ -142,12 +150,6 @@ async function api(req,env){
     return json({user:urow});
   }
   if(p==="/api/activity")return json((await env.DB.prepare("SELECT * FROM activity_logs ORDER BY id DESC LIMIT 100").all()).results||[]);
-
-  // Professional user management endpoints
-  if(p==="/api/users/advanced" && req.method==="GET")return usersAdvanced(req,env);
-  if(p==="/api/users/bulk" && req.method==="POST")return bulkUsers(req,env);
-  const userExtendMatch=p.match(/^\/api\/users\/([^/]+)\/extend$/);
-  if(userExtendMatch && req.method==="POST")return extendUser(req,env,userExtendMatch[1]);
 
   // Professional node monitoring endpoints
   if(p==="/api/nodes/stats" && req.method==="GET")return nodeStats(req,env);
