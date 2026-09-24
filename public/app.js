@@ -131,23 +131,31 @@ async function loadProUsers(){
     const r=await api(`/api/users/advanced?q=${q}&status=${st}&sort=${sort}`);
     proUsers=r.items||[];
     renderProUsers();
-    updateUsersPageStats();
+    updateUsersPageStats(r.stats||null);
   } catch(e) {
     const el=$("pro-users-list"); if(el) el.innerHTML=`<div class="dash-empty">دریافت کاربران ناموفق بود: ${esc(e.message||"خطای ناشناخته")}</div>`;
   }
 }
 
-function updateUsersPageStats(){
-  const total=proUsers.length;
-  const active=proUsers.filter(u=>u.status==='active').length;
-  const traffic=proUsers.reduce((n,u)=>n+Number(u.used_gb||0),0);
-  const now=Date.now(); const expiring=proUsers.filter(u=>{const t=Number(u.expires_at||0);return t&&t>now&&t<=now+7*86400000}).length;
+function updateUsersPageStats(stats){
+  const total=stats?Number(stats.total||0):proUsers.length;
+  const active=stats?Number(stats.active||0):proUsers.filter(u=>u.status==='active').length;
+  const traffic=stats?Number(stats.traffic||0):proUsers.reduce((n,u)=>n+Number(u.used_gb||0),0);
+  const expiring=stats?Number(stats.expiring||0):proUsers.filter(u=>{
+    const t=parseExpiry(u.expires_at); return t&&t>Date.now()&&t<=Date.now()+7*86400000;
+  }).length;
   if($("u-total"))$("u-total").textContent=total;
   if($("u-active"))$("u-active").textContent=active;
   if($("u-traffic"))$("u-traffic").textContent=traffic.toFixed(1)+" GB";
   if($("u-expiring"))$("u-expiring").textContent=expiring;
-  if($("users-result-count"))$("users-result-count").textContent=`${total} کاربر`;
+  if($("users-result-count"))$("users-result-count").textContent=`${proUsers.length} کاربر`;
 }
+function parseExpiry(v){
+  if(v===null||v===undefined||v==="")return 0;
+  const n=Number(v); if(Number.isFinite(n)&&n>0)return n<1e12?n*1000:n;
+  const t=Date.parse(v); return Number.isFinite(t)?t:0;
+}
+
 function renderProUsers(){
   const el=$("pro-users-list"); if(!el)return;
   el.innerHTML=`<table><thead><tr><th><input type="checkbox" onchange="toggleAllUsers(this.checked)"></th><th>کاربر</th><th>Protocol</th><th>Quota</th><th>مصرف</th><th>دستگاه</th><th>انقضا</th><th>وضعیت</th><th>عملیات</th></tr></thead><tbody>${proUsers.map(u=>{
@@ -182,7 +190,7 @@ async function editUserPrompt(id){
  closeModal("user-detail-modal");await loadProUsers()
 }
 function clearUserFilters(){if($("user-search"))$("user-search").value="";if($("user-status"))$("user-status").value="";if($("user-sort"))$("user-sort").value="created_at";loadProUsers()}
-function formatDate(v){if(!v)return"—";const d=new Date(Number(v));return isNaN(d)?"—":d.toLocaleDateString("fa-IR")}
+function formatDate(v){const t=parseExpiry(v);if(!t)return"—";const d=new Date(t);return isNaN(d)?"—":d.toLocaleDateString("fa-IR")}
 function exportUsersCSV(){
  const rows=[["username","protocol","country","quota_gb","used_gb","device_limit","status","expires_at"],...proUsers.map(u=>[u.username,u.protocol,u.country,u.quota_gb,u.used_gb,u.device_limit,u.status,u.expires_at])];
  const csv=rows.map(r=>r.map(x=>`"${String(x??"").replaceAll('"','""')}"`).join(",")).join("\n");
