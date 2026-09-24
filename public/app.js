@@ -16,40 +16,42 @@ function copyInstall(){navigator.clipboard?.writeText(`npm install
 npx wrangler d1 migrations apply alpha-db --remote
 npx wrangler secret put ALPHA_ADMIN_PASSWORD
 npx wrangler deploy`)}
-async function dash(){
-  try{
-    const [d,users,nodesList,acts]=await Promise.all([
-      api("/api/dashboard"),
-      api("/api/users"),
-      api("/api/nodes"),
-      api("/api/activity")
-    ]);
-    $("users").textContent=d.users;
-    $("active").textContent=d.activeUsers;
-    $("nodes").textContent=d.nodes;
-    const traffic=Number(d.trafficGb||0);
-    $("traffic").textContent=traffic.toFixed(1)+" GB";
-    $("activity").textContent=d.activity24h;
-    $("tv").textContent=traffic.toFixed(1)+" GB";
-    $("tb").style.width=Math.min(100,traffic)+"%";
-    const totalEl=$("dash-traffic-total"); if(totalEl) totalEl.textContent=traffic.toFixed(1);
-    const bars=$("dash-traffic-bars");
-    if(bars){
-      const vals=(users||[]).slice(0,10).map(x=>Number(x.used_gb||0));
-      const max=Math.max(1,...vals);
-      bars.innerHTML=(vals.length?vals:[0]).map(v=>`<i style="height:${Math.max(14,Math.round(v/max*100))}%" title="${v.toFixed(1)} GB"></i>`).join("");
-    }
-    const recent=(users||[]).slice(0,5);
-    const du=$("dash-users");
-    if(du) du.innerHTML=recent.length?`<div class="dash-row"><span>کاربر</span><span>پروتکل</span><span>وضعیت</span><span>مصرف</span></div>`+recent.map(u=>`<div class="dash-row"><span><b>${esc(u.username)}</b><small>${esc(u.country||"بدون کشور")}</small></span><span>${esc(u.protocol||"—")}</span><span><i class="status-chip ${u.status!=="active"?"warn":""}">${esc(u.status||"unknown")}</i></span><span>${Number(u.used_gb||0).toFixed(1)} / ${Number(u.quota_gb||0).toFixed(1)} GB</span></div>`).join(""):"<div class='empty-state'>هنوز کاربری ثبت نشده است.</div>";
-    const dn=$("dash-nodes");
-    const nl=(nodesList||[]).slice(0,5);
-    if(dn) dn.innerHTML=nl.length?nl.map(n=>`<div class="node-row-glass"><i class="node-dot-glass ${n.status==="offline"?"warn":""}"></i><div><b>${esc(n.name)}</b><small>${esc(n.protocol||"—")} · ${n.latency_ms!=null?Number(n.latency_ms).toFixed(0)+" ms": "latency —"}</small></div><strong class="${n.status==="offline"?"warn":""}">${esc(n.status||"unknown")}</strong></div>`).join(""):"<div class='empty-state'>هنوز نودی ثبت نشده است.</div>";
-    const da=$("dash-activity");
-    const al=(acts||[]).slice(0,5);
-    if(da) da.innerHTML=al.length?al.map((a,i)=>`<div class="event-row"><i class="event-icon ${i%3===1?"green":i%3===2?"purple":""}"></i><div><b>${esc(a.action||"رویداد")}</b><small>${esc(a.details||"بدون جزئیات")} · ${esc(a.created_at||"")}</small></div></div>`).join(""):"<div class='empty-state'>فعالیتی ثبت نشده است.</div>";
-    const up=$("dash-updated"); if(up) up.textContent=new Date().toLocaleTimeString("fa-IR",{hour:"2-digit",minute:"2-digit"});
-  }catch(e){console.warn("dashboard",e)}
+async function dash(){try{let d=await api("/api/dashboard");$("users").textContent=d.users;$("active").textContent=d.activeUsers;$("nodes").textContent=d.nodes;$("traffic").textContent=Number(d.trafficGb).toFixed(1)+" GB";$("activity").textContent=d.activity24h;$("tv").textContent=Number(d.trafficGb).toFixed(1)+" GB";$("tb").style.width=Math.min(100,d.trafficGb)+"%"}catch{}}
+async function loadUsers(){us=await api("/api/users");renderUsers()}
+function renderUsers(){let q=($("search").value||"").toLowerCase();$("ut").innerHTML=us.filter(x=>x.username.toLowerCase().includes(q)).map(x=>`<tr><td>${esc(x.username)}</td><td>${esc(x.protocol)}</td><td>${esc(x.country)}</td><td>${x.used_gb}/${x.quota_gb} GB</td><td>${esc(x.status)}</td><td><button onclick="profile(${x.id})">جزئیات</button> <button onclick="toggle(${x.id},'${x.status==="active"?"disabled":"active"}')">${x.status==="active"?"غیرفعال":"فعال"}</button> <button onclick="del(${x.id})">حذف</button></td></tr>`).join("")||"<tr><td colspan=6>کاربری وجود ندارد</td></tr>"}
+async function toggle(id,s){await api("/api/users/"+id,{method:"PATCH",body:JSON.stringify({status:s})});loadUsers()}
+async function del(id){if(confirm("حذف شود؟")){await api("/api/users/"+id,{method:"DELETE"});loadUsers()}}
+function openModal(){$("modal").showModal()}
+async function createUser(e){e.preventDefault();try{await api("/api/users",{method:"POST",body:JSON.stringify({username:$("un").value,protocol:$("up").value,quota_gb:+$("uq").value,country:$("uc").value,device_limit:+$("ud").value})});$("modal").close();e.target.reset();loadUsers()}catch(x){alert(x.message)}}
+async function profile(id){try{const d=await api("/api/users/"+id),u=d.user,sub=location.origin+"/sub/"+u.subscription_token;const b=$("profile-body");b.innerHTML=`<h2>${esc(u.username)}</h2><div class="profile-grid"><div><small>Protocol</small><b>${esc(u.protocol)}</b></div><div><small>Quota</small><b>${u.used_gb}/${u.quota_gb} GB</b></div><div><small>Devices</small><b>${u.device_limit}</b></div><div><small>Status</small><b>${esc(u.status)}</b></div></div><label>لینک اشتراک<input id="sub-link" readonly value="${esc(sub)}"></label><div id="qrcode" class="qr"></div><button class="primary wide" onclick="copyText('sub-link')">کپی لینک اشتراک</button><h3>کانفیگ‌ها</h3><pre id="configs">در حال دریافت...</pre>`;$("profile-modal").showModal();const r=await fetch(sub+"?format=json");const x=await r.json();const raw=await fetch(sub);const cfg=await raw.json();$("configs").textContent=(cfg.configs||[]).join("\\n")||"برای این کاربر هنوز Node فعالی ثبت نشده است.";new QRCode($("qrcode"),{text:sub,width:190,height:190})}catch(e){alert(e.message)}}
+function copyText(id){const x=$(id);x.select();navigator.clipboard?.writeText(x.value)}
+async function nodes(){let x=await api("/api/nodes");$("nl").innerHTML=x.length?x.map(n=>`<div class="node-row"><div><b>${esc(n.name)}</b><small>${esc(n.country)} · ${esc(n.protocol)}</small></div><span>${esc(n.status)}</span></div>`).join(""):"هنوز نودی ثبت نشده است."}
+function openNodeModal(){$("node-modal").classList.remove("hidden")}
+async function saveNode(){try{await api("/api/nodes",{method:"POST",body:JSON.stringify({name:$("n-name").value,country:$("n-country").value,endpoint:$("n-endpoint").value,protocol:$("n-protocol").value})});closeModal("node-modal");await nodes();dash()}catch(e){alert(e.message)}}
+async function loadSubscriptions(){const r=await api("/api/subscriptions");$("subs-list").innerHTML=(r.items||[]).map(x=>`<tr><td>${esc(x.username)}</td><td>${esc(x.protocol)}</td><td>${x.quota_gb} GB</td><td>${x.used_gb} GB</td><td>${x.device_limit}</td><td>${esc(x.status)}</td><td><button onclick="profile('${x.id}')">جزئیات</button> <button class="danger" onclick="removeSub('${x.id}')">حذف</button></td></tr>`).join("")||"<tr><td colspan=7>اشتراکی وجود ندارد</td></tr>"}
+function openSubModal(){$("sub-modal").classList.remove("hidden")}
+async function saveSub(){try{await api("/api/subscriptions",{method:"POST",body:JSON.stringify({username:$("s-user").value,quota_gb:$("s-quota").value,device_limit:$("s-devices").value,protocol:$("s-protocol").value})});closeModal("sub-modal");await loadSubscriptions()}catch(e){alert(e.message)}}
+async function removeSub(id){if(!confirm("حذف این اشتراک؟"))return;await api("/api/subscriptions/"+id,{method:"DELETE"});await loadSubscriptions()}
+async function activity(){let x=await api("/api/activity");$("al").innerHTML=x.map(n=>`<p>${esc(n.action)} — ${esc(n.details||"")} <small>${esc(n.created_at)}</small></p>`).join("")||"فعالیتی ثبت نشده است."}
+function closeModal(id){$(id).classList.add("hidden")}
+function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]))}
+function alphaTarget(p){return ({dashboard:"dashboard",users:"users-page",nodes:"nodes-page",subscriptions:"subscription-center",traffic:"traffic-page",activity:"activity-page",security:"security-center",production:"alpha-production",settings:"alpha-settings-center",appearance:"alpha-ui-center"})[p]||"dashboard"}
+function alphaOpenView(p){document.querySelectorAll(".page,.view").forEach(x=>x.classList.add("hidden"));const el=$(alphaTarget(p));if(el)el.classList.remove("hidden");document.querySelectorAll("nav button[data-p]").forEach(x=>x.classList.toggle("active",x.dataset.p===p));if(p==="dashboard")dash();if(p==="users")loadProUsers();if(p==="nodes")loadNodeMonitor();if(p==="subscriptions")alphaLoadSubscriptions();if(p==="traffic")loadTrafficHistory();if(p==="activity")activity();if(p==="security"){alphaSecurityCheck();alphaLoadAudit();}if(p==="production")alphaProductionCheck();if(p==="settings")alphaRefreshControlCenter();if(p==="appearance")alphaLoadUISettings();}
+document.querySelectorAll("nav button[data-p]").forEach(b=>b.onclick=()=>alphaOpenView(b.dataset.p));
+function toggleSidebar(){document.getElementById("alpha-sidebar")?.classList.toggle("collapsed");document.getElementById("app")?.classList.toggle("sidebar-collapsed");}
+
+async function boot(){try{await api("/api/dashboard");$("login").classList.add("hidden");$("app").classList.remove("hidden");alphaOpenView("dashboard");}catch{try{await api("/api/health");show("login")}catch{$("login").classList.remove("hidden")}}}
+boot()
+
+async function loadTrafficHistory(){try{const d=await api("/api/traffic/history?hours=24");const items=d.items||[];$("tv").textContent=Number(d.current_used_gb||0).toFixed(2)+" GB";if($("traffic-points"))$("traffic-points").textContent=items.length;if($("traffic-last"))$("traffic-last").textContent=items.length?new Date(items[items.length-1].captured_at).toLocaleTimeString("fa-IR",{hour:"2-digit",minute:"2-digit"}):"—";const chart=$("traffic-chart");if(chart){if(!items.length){chart.innerHTML='<div class="chart-empty">هنوز snapshot ساعتی ثبت نشده است. اولین snapshot با Cron یا دکمه «ثبت نقطه فعلی» ایجاد می‌شود.</div>';}else{const max=Math.max(...items.map(x=>Number(x.total_used_gb||0)),1);chart.innerHTML=items.map(x=>`<div class="chart-bar" title="${new Date(x.captured_at).toLocaleString("fa-IR")}"><i style="height:${Math.max(6,Number(x.total_used_gb||0)/max*100)}%"></i><small>${new Date(x.captured_at).toLocaleTimeString("fa-IR",{hour:"2-digit"})}</small></div>`).join("");}}const list=$("traffic-history-list");if(list)list.innerHTML=`<table><thead><tr><th>زمان</th><th>مصرف کل</th><th>کاربران</th><th>فعال</th></tr></thead><tbody>${items.slice().reverse().map(x=>`<tr><td>${new Date(x.captured_at).toLocaleString("fa-IR")}</td><td>${Number(x.total_used_gb||0).toFixed(2)} GB</td><td>${x.users_count}</td><td>${x.active_users_count}</td></tr>`).join("")||'<tr><td colspan="4">داده‌ای ثبت نشده است.</td></tr>'}</tbody></table>`;}catch(e){console.error(e)}}
+async function captureTrafficNow(){try{await api("/api/traffic/snapshot",{method:"POST"});await loadTrafficHistory();}catch(e){alert(e.message)}}
+
+let proUsers=[], selectedUsers=new Set(), userSearchTimer;
+function debouncedUsers(){clearTimeout(userSearchTimer);userSearchTimer=setTimeout(loadProUsers,250)}
+async function loadProUsers(){
+  const q=encodeURIComponent($("user-search")?.value||""), st=encodeURIComponent($("user-status")?.value||""), sort=encodeURIComponent($("user-sort")?.value||"created_at");
+  const r=await api(`/api/users/advanced?q=${q}&status=${st}&sort=${sort}`);
+  proUsers=r.items||[]; renderProUsers();
 }
 function renderProUsers(){
   const el=$("pro-users-list"); if(!el)return;
@@ -393,58 +395,3 @@ function alphaToggleNotifications(){document.getElementById("alpha-notification-
 async function alphaReadNotification(id){await api(`/api/notifications/${encodeURIComponent(id)}/read`,{method:"POST"});alphaLoadNotifications()}
 async function alphaReadAllNotifications(){await api("/api/notifications/read-all",{method:"POST"});alphaLoadNotifications()}
 document.addEventListener("DOMContentLoaded",()=>{alphaLoadUISettings();alphaLoadNotifications()});
-
-
-async function alphaRunReleaseCheck(){
-  const r=await api("/api/v4/health").catch(()=>null);
-  const rb=document.getElementById("alpha-rbac-state"), ap=document.getElementById("alpha-api-state");
-  if(!r){if(rb)rb.textContent="Unavailable";if(ap)ap.textContent="Failed";return}
-  if(rb)rb.textContent=r.rbac?`Active (${r.role})`:"Session/role not linked";
-  if(ap)ap.textContent=r.ok?"Healthy":"Failed";
-}
-document.addEventListener("DOMContentLoaded",()=>{alphaRunReleaseCheck()});
-
-/* ALPHA v4.3.1 — authentication bootstrap + page navigation repair */
-async function alphaBoot(){
-  try{
-    const r=await fetch('/api/auth/me',{method:'GET',credentials:'same-origin',cache:'no-store',headers:{'accept':'application/json'}});
-    const d=await r.json().catch(()=>({}));
-    if(d.authenticated){
-      show('app');
-      document.querySelectorAll('#app .page').forEach(p=>p.classList.add('hidden'));
-      const dashPage=document.getElementById('dashboard');
-      if(dashPage)dashPage.classList.remove('hidden');
-      dash().catch(()=>{});
-      return;
-    }
-  }catch(e){}
-  show('login');
-}
-
-function alphaOpenPage(name){
-  const map={
-    dashboard:'dashboard',
-    users:'users-page',
-    nodes:'nodes-page',
-    subscriptions:'subscriptions-page',
-    traffic:'traffic-page',
-    activity:'activity-page',
-    settings:'settings-page'
-  };
-  const id=map[name]||'dashboard';
-  document.querySelectorAll('#app .page').forEach(p=>p.classList.add('hidden'));
-  const page=document.getElementById(id);
-  if(page)page.classList.remove('hidden');
-  document.querySelectorAll('aside nav button[data-p]').forEach(b=>b.classList.toggle('active',b.dataset.p===name));
-  if(name==='dashboard')dash().catch(()=>{});
-  if(name==='users'&&typeof loadProUsers==='function')loadProUsers().catch(()=>{});
-  if(name==='nodes'&&typeof loadNodeMonitor==='function')loadNodeMonitor().catch(()=>{});
-  if(name==='subscriptions'&&typeof alphaLoadSubscriptions==='function')alphaLoadSubscriptions().catch(()=>{});
-}
-
-document.addEventListener('DOMContentLoaded',()=>{
-  document.querySelectorAll('aside nav button[data-p]').forEach(btn=>{
-    btn.addEventListener('click',()=>alphaOpenPage(btn.dataset.p));
-  });
-  alphaBoot();
-});
