@@ -127,8 +127,26 @@ let proUsers=[], selectedUsers=new Set(), userSearchTimer;
 function debouncedUsers(){clearTimeout(userSearchTimer);userSearchTimer=setTimeout(loadProUsers,250)}
 async function loadProUsers(){
   const q=encodeURIComponent($("user-search")?.value||""), st=encodeURIComponent($("user-status")?.value||""), sort=encodeURIComponent($("user-sort")?.value||"created_at");
-  const r=await api(`/api/users/advanced?q=${q}&status=${st}&sort=${sort}`);
-  proUsers=r.items||[]; renderProUsers();
+  try {
+    const r=await api(`/api/users/advanced?q=${q}&status=${st}&sort=${sort}`);
+    proUsers=r.items||[];
+    renderProUsers();
+    updateUsersPageStats();
+  } catch(e) {
+    const el=$("pro-users-list"); if(el) el.innerHTML=`<div class="dash-empty">دریافت کاربران ناموفق بود: ${esc(e.message||"خطای ناشناخته")}</div>`;
+  }
+}
+
+function updateUsersPageStats(){
+  const total=proUsers.length;
+  const active=proUsers.filter(u=>u.status==='active').length;
+  const traffic=proUsers.reduce((n,u)=>n+Number(u.used_gb||0),0);
+  const now=Date.now(); const expiring=proUsers.filter(u=>{const t=Number(u.expires_at||0);return t&&t>now&&t<=now+7*86400000}).length;
+  if($("u-total"))$("u-total").textContent=total;
+  if($("u-active"))$("u-active").textContent=active;
+  if($("u-traffic"))$("u-traffic").textContent=traffic.toFixed(1)+" GB";
+  if($("u-expiring"))$("u-expiring").textContent=expiring;
+  if($("users-result-count"))$("users-result-count").textContent=`${total} کاربر`;
 }
 function renderProUsers(){
   const el=$("pro-users-list"); if(!el)return;

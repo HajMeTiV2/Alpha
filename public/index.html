@@ -99,7 +99,26 @@
     </section>
   </div>
 </section>
-<section id="users-page" class="page hidden"><div class="head"><div><small>USERS</small><h1>مدیریت کاربران</h1></div><button class="primary" onclick="openModal()">+ افزودن</button></div><div class="panel"><input id="search" placeholder="جستجو..." oninput="renderUsers()"><div class="table"><table><thead><tr><th>کاربر</th><th>پروتکل</th><th>کشور</th><th>مصرف</th><th>وضعیت</th><th>عملیات</th></tr></thead><tbody id="ut"></tbody></table></div></div></section>
+<section id="users-page" class="page hidden alpha-users-page">
+  <div class="section-head alpha-users-head">
+    <div><span class="eyebrow">USER MANAGEMENT</span><h2>مدیریت کاربران</h2><p class="muted">جستجو، سهمیه، مصرف، انقضا و وضعیت کاربران ALPHA</p></div>
+    <div class="head-actions"><button class="ghost" onclick="exportUsersCSV()">Export CSV</button><button class="primary" onclick="openModal()">＋ کاربر جدید</button></div>
+  </div>
+  <div class="alpha-user-toolbar panel-card">
+    <div class="alpha-user-search"><span>⌕</span><input id="user-search" placeholder="جستجوی نام کاربری، کشور یا پروتکل" oninput="debouncedUsers()"></div>
+    <select id="user-status" onchange="loadProUsers()"><option value="">همه وضعیت‌ها</option><option value="active">فعال</option><option value="suspended">معلق</option><option value="disabled">غیرفعال</option><option value="expired">منقضی</option></select>
+    <select id="user-sort" onchange="loadProUsers()"><option value="created_at">جدیدترین</option><option value="username">نام کاربری</option><option value="used_gb">بیشترین مصرف</option><option value="quota_gb">بیشترین سهمیه</option><option value="expires_at">نزدیک‌ترین انقضا</option></select>
+    <button class="ghost" onclick="clearUserFilters()">پاک کردن</button>
+  </div>
+  <div class="alpha-user-stats" id="user-page-stats">
+    <div class="user-stat"><span>کل کاربران</span><b id="u-total">—</b><small>ثبت‌شده در ALPHA</small></div>
+    <div class="user-stat"><span>فعال</span><b id="u-active">—</b><small>دسترسی فعال</small></div>
+    <div class="user-stat"><span>مصرف کل</span><b id="u-traffic">—</b><small>GB مصرف‌شده</small></div>
+    <div class="user-stat"><span>در آستانه انقضا</span><b id="u-expiring">—</b><small>نیازمند بررسی</small></div>
+  </div>
+  <div id="bulk-bar" class="alpha-bulk-bar hidden"><div><b id="selected-count">0 انتخاب</b><span>کاربر انتخاب شده</span></div><div><button class="ghost" onclick="bulkUserAction('activate')">فعال‌سازی</button><button class="ghost" onclick="bulkUserAction('suspend')">تعلیق</button><button class="danger" onclick="bulkUserAction('delete')">حذف</button></div></div>
+  <div class="panel-card alpha-users-table-card"><div class="panel-title"><div><span class="eyebrow">USERS</span><h3>فهرست کاربران</h3></div><span class="muted" id="users-result-count">—</span></div><div id="pro-users-list" class="table-wrap alpha-users-table"><div class="dash-empty">در حال دریافت کاربران...</div></div></div>
+</section>
 <section id="subscriptions-page" class="page hidden"><div class="head"><div><small>SUBSCRIPTIONS</small><h1>اشتراک‌ها</h1></div><button class="primary" onclick="openSubModal()">+ اشتراک جدید</button></div><div class="panel"><div class="table"><table><thead><tr><th>کاربر</th><th>پروتکل</th><th>Quota</th><th>مصرف</th><th>دستگاه</th><th>وضعیت</th><th>عملیات</th></tr></thead><tbody id="subs-list"></tbody></table></div></div></section>
 <section id="nodes-page" class="page hidden"><div class="head"><h1>نودها</h1><button class="primary" onclick="openNodeModal()">+ افزودن Node</button></div><div class="panel" id="nl">هنوز نودی ثبت نشده است.</div></section>
 <section id="traffic-page" class="page hidden"><div class="head"><div><small>TRAFFIC ANALYTICS</small><h1>ترافیک و مصرف</h1><p>تاریخچه واقعی مصرف ثبت‌شده توسط ALPHA</p></div><button class="primary" onclick="captureTrafficNow()">ثبت نقطه فعلی</button></div><div class="stats"><article>مصرف کل<strong id="tv">0 GB</strong></article><article>نقاط ثبت‌شده<strong id="traffic-points">0</strong></article><article>بازه<strong>۲۴ ساعت</strong></article><article>Snapshot<strong id="traffic-last">—</strong></article></div><div class="panel traffic-chart-panel"><div class="panel-title"><div><span class="eyebrow">REAL HISTORY</span><h3>روند مصرف ۲۴ ساعت گذشته</h3></div></div><div id="traffic-chart" class="traffic-chart"></div></div><div class="panel"><div class="table-wrap" id="traffic-history-list"></div></div></section>
