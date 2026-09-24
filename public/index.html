@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ALPHA — Command Center</title>
+  <meta name="description" content="ALPHA Network Command Center">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="bg-grid"></div>
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="alpha-mark">A</div>
+      <div><strong>ALPHA</strong><span>COMMAND CENTER</span></div>
+    </div>
+    <nav>
+      <button class="nav active" data-section="dashboard">◈ داشبورد</button>
+      <button class="nav" data-section="users">◎ کاربران</button>
+      <button class="nav" data-section="activity">◌ فعالیت‌ها</button>
+      <button class="nav" data-section="settings">⚙ تنظیمات</button>
+    </nav>
+    <div class="side-foot">
+      <span class="dot"></span> Alpha Core Online
+      <small>@V2rayTun0 · @Mehtif</small>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div>
+        <div class="eyebrow">ALPHA NETWORK</div>
+        <h1 id="pageTitle">مرکز فرمان Alpha</h1>
+      </div>
+      <button class="primary" id="addBtn">＋ ساخت کاربر</button>
+    </header>
+
+    <section id="dashboard" class="section active">
+      <div class="hero">
+        <div>
+          <span class="pill">ALPHA CORE / READY</span>
+          <h2>کنترل شبکه، ساده و دقیق.</h2>
+          <p>مدیریت کاربران، سهمیه، پروتکل و وضعیت سرویس از یک مرکز واحد.</p>
+        </div>
+        <div class="hero-ring">α</div>
+      </div>
+      <div class="stats">
+        <div class="card"><span>کاربران</span><b id="statUsers">0</b><small>کل پروفایل‌ها</small></div>
+        <div class="card"><span>فعال</span><b id="statActive">0</b><small>پروفایل‌های فعال</small></div>
+        <div class="card"><span>مصرف</span><b id="statUsage">0 GB</b><small>مجموع مصرف</small></div>
+        <div class="card"><span>هسته</span><b class="online">ONLINE</b><small>API / D1</small></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><div><b>آخرین کاربران</b><span>Recent Alpha Profiles</span></div><button class="ghost" data-section-jump="users">مشاهده همه</button></div>
+        <div id="recentUsers" class="table-wrap"></div>
+      </div>
+    </section>
+
+    <section id="users" class="section">
+      <div class="toolbar">
+        <input id="search" placeholder="جستجوی نام، پروتکل یا کشور...">
+        <button class="ghost" id="refresh">↻ بروزرسانی</button>
+      </div>
+      <div class="panel"><div id="usersTable" class="table-wrap"></div></div>
+    </section>
+
+    <section id="activity" class="section">
+      <div class="panel">
+        <div class="panel-head"><div><b>Activity</b><span>رویدادهای مدیریتی</span></div></div>
+        <div class="empty">لاگ‌های فعالیت در نسخه بعدی از D1 خوانده خواهند شد.</div>
+      </div>
+    </section>
+
+    <section id="settings" class="section">
+      <div class="panel settings">
+        <h3>تنظیمات Alpha</h3>
+        <label>کانال <input value="@V2rayTun0" disabled></label>
+        <label>سازنده <input value="@Mehtif" disabled></label>
+        <label>Repository <input value="HajMeTiV2/Alpha" disabled></label>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="userDialog">
+    <form method="dialog" id="userForm">
+      <div class="dialog-head"><b>ساخت پروفایل Alpha</b><button value="cancel" class="icon-btn">×</button></div>
+      <label>نام کاربر<input name="username" required placeholder="alpha_user"></label>
+      <div class="grid2">
+        <label>پروتکل<select name="protocol"><option>VLESS</option><option>Trojan</option><option>Shadowsocks</option></select></label>
+        <label>کشور<input name="country" value="IR" maxlength="3"></label>
+      </div>
+      <div class="grid2">
+        <label>سهمیه GB<input name="quota_gb" type="number" min="1" value="50"></label>
+        <label>دستگاه<input name="device_limit" type="number" min="1" value="2"></label>
+      </div>
+      <button class="primary" value="default">ایجاد پروفایل</button>
+    </form>
+  </dialog>
+
+  <script src="/app.js"></script>
+</body>
+</html>
