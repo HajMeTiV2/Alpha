@@ -31,8 +31,74 @@
 
 <section id="login" class="auth"><div class="auth-card"><div class="logo">A</div><small>ALPHA CONTROL</small><h1>ورود به پنل</h1><p>مرکز کنترل امن Alpha</p><input id="password" type="password" placeholder="رمز مدیریت"><button class="primary wide" onclick="login()">ورود به Alpha</button><em>@V2rayTun0</em><button class="text-link" type="button" onclick="showInstaller()">راه‌اندازی / نصب مجدد Alpha</button></div></section>
 <div id="app" class="hidden app"><aside id="alpha-sidebar"><div class="brand"><b>A</b><span>ALPHA<small>CONTROL CENTER</small></span></div><button class="sidebar-toggle" type="button" onclick="toggleSidebar()">☰ <span>منو</span></button><nav><button data-p="dashboard">⌂ <span>داشبورد</span></button><button data-p="users">♙ <span>کاربران</span></button><button data-p="nodes">◇ <span>نودها</span></button><button data-p="subscriptions">▣ <span>اشتراک‌ها</span></button><button data-p="traffic">◫ <span>ترافیک</span></button><button data-p="activity">◌ <span>فعالیت و Audit</span></button><button data-p="security">▤ <span>امنیت و Backup</span></button><button data-p="production">☁ <span>Cloudflare / PWA</span></button><button data-p="settings">⚙ <span>دسترسی ادمین</span></button><button data-p="appearance">◐ <span>ظاهر و Panel</span></button></nav><footer><span>@V2rayTun0</span><button onclick="logout()">خروج</button></footer></aside>
-<main><header><span class="header-status">● سیستم آنلاین</span><div class="header-actions"><button class="icon-btn" onclick="alphaToggleNotifications()">♧</button><span>ALPHA v5.0</span></div></header>
-<section id="dashboard" class="page"><div class="head"><div><small>OVERVIEW</small><h1>خوش آمدی به Alpha</h1><p>مرکز کنترل سرویس و زیرساخت</p></div><button class="primary" onclick="openModal()">+ کاربر جدید</button></div><div class="stats"><article>کاربران<strong id="users">0</strong></article><article>فعال<strong id="active">0</strong></article><article>نودها<strong id="nodes">0</strong></article><article>مصرف<strong id="traffic">0 GB</strong></article></div><div class="grid"><div class="panel"><h3>وضعیت سیستم</h3><p>Worker <b>Online</b></p><p>D1 Database <b>Connected</b></p><p>Authentication <b>Protected</b></p></div><div class="panel"><h3>فعالیت ۲۴ ساعت</h3><strong class="big" id="activity">0</strong></div></div></section>
+<main><header><span class="header-status">● سیستم آنلاین</span><div class="header-actions"><button class="icon-btn" onclick="alphaToggleNotifications()">♧</button><span>ALPHA v5.2</span></div></header>
+<section id="dashboard" class="page alpha-dashboard">
+  <div class="alpha-dash-hero">
+    <div class="alpha-hero-copy">
+      <div class="alpha-overline"><span class="pulse-dot"></span> CONTROL CENTER</div>
+      <h1>خوش آمدی به <span>ALPHA</span></h1>
+      <p>مرکز کنترل سرویس، کاربران و زیرساخت در یک نگاه.</p>
+      <div class="alpha-hero-meta"><span class="live-chip">● سیستم آنلاین</span><span id="dash-last-sync">آخرین بروزرسانی —</span></div>
+    </div>
+    <div class="alpha-hero-actions">
+      <button class="primary" onclick="openModal()">+ کاربر جدید</button>
+      <button class="glass-btn" onclick="alphaRefreshDashboard()">↻ بروزرسانی</button>
+    </div>
+    <div class="alpha-hero-orb"></div>
+  </div>
+
+  <div class="alpha-dash-stats">
+    <article class="dash-stat stat-users"><div class="stat-icon">♙</div><div><span>کل کاربران</span><strong id="users">0</strong><small id="users-trend">مدیریت شده در ALPHA</small></div></article>
+    <article class="dash-stat stat-active"><div class="stat-icon">●</div><div><span>کاربران فعال</span><strong id="active">0</strong><small id="active-rate">۰٪ از کاربران</small></div></article>
+    <article class="dash-stat stat-nodes"><div class="stat-icon">◇</div><div><span>نودها</span><strong id="nodes">0</strong><small id="nodes-health">در حال بررسی</small></div></article>
+    <article class="dash-stat stat-traffic"><div class="stat-icon">◫</div><div><span>مصرف کل</span><strong id="traffic">0 GB</strong><small id="traffic-caption">مصرف ثبت‌شده کاربران</small></div></article>
+  </div>
+
+  <div class="alpha-dash-grid alpha-dash-grid-top">
+    <section class="dash-panel dash-traffic-panel">
+      <div class="dash-panel-head"><div><span class="dash-kicker">TRAFFIC ANALYTICS</span><h3>روند مصرف ۲۴ ساعت گذشته</h3></div><span class="dash-live">LIVE</span></div>
+      <div id="dash-traffic-chart" class="dash-line-chart"><div class="dash-chart-empty">در حال دریافت داده...</div></div>
+      <div class="dash-chart-footer"><span id="dash-traffic-min">—</span><span>مصرف کل</span><strong id="dash-traffic-current">0 GB</strong></div>
+    </section>
+    <section class="dash-panel dash-health-panel">
+      <div class="dash-panel-head"><div><span class="dash-kicker">SYSTEM HEALTH</span><h3>وضعیت سیستم</h3></div><span class="health-ring" id="dash-health-ring">100%</span></div>
+      <div class="health-list">
+        <div><span><i class="health-dot"></i>Worker</span><b id="health-worker">Online</b></div>
+        <div><span><i class="health-dot"></i>D1 Database</span><b id="health-db">Connected</b></div>
+        <div><span><i class="health-dot"></i>Authentication</span><b id="health-auth">Protected</b></div>
+        <div><span><i class="health-dot"></i>PWA</span><b id="health-pwa">Ready</b></div>
+      </div>
+      <div class="health-foot"><span>آخرین بررسی</span><b id="health-time">—</b></div>
+    </section>
+  </div>
+
+  <div class="alpha-dash-grid alpha-dash-grid-mid">
+    <section class="dash-panel">
+      <div class="dash-panel-head"><div><span class="dash-kicker">RECENT USERS</span><h3>کاربران اخیر</h3></div><button class="glass-btn small" onclick="alphaOpenView('users')">مشاهده همه</button></div>
+      <div id="dash-recent-users" class="dash-user-list"><div class="dash-empty">در حال دریافت...</div></div>
+    </section>
+    <section class="dash-panel">
+      <div class="dash-panel-head"><div><span class="dash-kicker">ACTIVE NODES</span><h3>نودهای فعال</h3></div><button class="glass-btn small" onclick="alphaOpenView('nodes')">مدیریت نودها</button></div>
+      <div id="dash-node-list" class="dash-node-list"><div class="dash-empty">در حال دریافت...</div></div>
+    </section>
+  </div>
+
+  <div class="alpha-dash-grid alpha-dash-grid-bottom">
+    <section class="dash-panel dash-activity-panel">
+      <div class="dash-panel-head"><div><span class="dash-kicker">ACTIVITY</span><h3>فعالیت‌های اخیر</h3></div><span class="activity-count"><b id="activity">0</b> رویداد / ۲۴ ساعت</span></div>
+      <div id="dash-activity-feed" class="dash-activity-feed"><div class="dash-empty">در حال دریافت...</div></div>
+    </section>
+    <section class="dash-panel dash-quick-panel">
+      <div class="dash-panel-head"><div><span class="dash-kicker">QUICK ACTIONS</span><h3>دسترسی سریع</h3></div></div>
+      <div class="quick-actions">
+        <button onclick="openModal()"><span>＋</span><b>کاربر جدید</b><small>ایجاد حساب</small></button>
+        <button onclick="openNodeModal()"><span>◇</span><b>افزودن Node</b><small>اتصال زیرساخت</small></button>
+        <button onclick="alphaOpenView('subscriptions')"><span>▣</span><b>اشتراک‌ها</b><small>مدیریت سرویس</small></button>
+        <button onclick="alphaOpenView('security')"><span>◈</span><b>امنیت و Backup</b><small>بررسی و پشتیبان</small></button>
+      </div>
+    </section>
+  </div>
+</section>
 <section id="users-page" class="page hidden"><div class="head"><div><small>USERS</small><h1>مدیریت کاربران</h1></div><button class="primary" onclick="openModal()">+ افزودن</button></div><div class="panel"><input id="search" placeholder="جستجو..." oninput="renderUsers()"><div class="table"><table><thead><tr><th>کاربر</th><th>پروتکل</th><th>کشور</th><th>مصرف</th><th>وضعیت</th><th>عملیات</th></tr></thead><tbody id="ut"></tbody></table></div></div></section>
 <section id="subscriptions-page" class="page hidden"><div class="head"><div><small>SUBSCRIPTIONS</small><h1>اشتراک‌ها</h1></div><button class="primary" onclick="openSubModal()">+ اشتراک جدید</button></div><div class="panel"><div class="table"><table><thead><tr><th>کاربر</th><th>پروتکل</th><th>Quota</th><th>مصرف</th><th>دستگاه</th><th>وضعیت</th><th>عملیات</th></tr></thead><tbody id="subs-list"></tbody></table></div></div></section>
 <section id="nodes-page" class="page hidden"><div class="head"><h1>نودها</h1><button class="primary" onclick="openNodeModal()">+ افزودن Node</button></div><div class="panel" id="nl">هنوز نودی ثبت نشده است.</div></section>

@@ -16,8 +16,72 @@ function copyInstall(){navigator.clipboard?.writeText(`npm install
 npx wrangler d1 migrations apply alpha-db --remote
 npx wrangler secret put ALPHA_ADMIN_PASSWORD
 npx wrangler deploy`)}
-async function dash(){try{let d=await api("/api/dashboard");$("users").textContent=d.users;$("active").textContent=d.activeUsers;$("nodes").textContent=d.nodes;$("traffic").textContent=Number(d.trafficGb).toFixed(1)+" GB";$("activity").textContent=d.activity24h;$("tv").textContent=Number(d.trafficGb).toFixed(1)+" GB";$("tb").style.width=Math.min(100,d.trafficGb)+"%"}catch{}}
-async function loadUsers(){us=await api("/api/users");renderUsers()}
+async function dash(){
+  const stamp=()=>new Date().toLocaleTimeString("fa-IR",{hour:"2-digit",minute:"2-digit"});
+  try{
+    const [d,u,n,a,t,h]=await Promise.all([
+      api("/api/dashboard"), api("/api/users"), api("/api/nodes"), api("/api/activity"), api("/api/traffic/history?hours=24"), api("/api/settings/health")
+    ]);
+    const users=Array.isArray(u)?u:[], nodes=Array.isArray(n)?n:[], acts=Array.isArray(a)?a:[];
+    $("users").textContent=d.users??users.length;
+    $("active").textContent=d.activeUsers??users.filter(x=>x.status==="active").length;
+    $("nodes").textContent=d.nodes??nodes.length;
+    $("traffic").textContent=Number(d.trafficGb||0).toFixed(1)+" GB";
+    $("activity").textContent=d.activity24h??0;
+    const activeRate=users.length?Math.round((users.filter(x=>x.status==="active").length/users.length)*100):0;
+    $("active-rate").textContent=`${activeRate}٪ از کاربران`;
+    $("users-trend").textContent=users.length?`آخرین ثبت: ${formatDate(users[0]?.created_at)}`:"هنوز کاربری ثبت نشده";
+    const online=nodes.filter(x=>x.status==="online"||x.status==="active").length;
+    $("nodes-health").textContent=nodes.length?`${online} آنلاین · ${nodes.length-online} نیازمند بررسی`:"هنوز Node ثبت نشده";
+    $("dash-last-sync").textContent=`آخرین بروزرسانی ${stamp()}`;
+    renderDashTraffic(t);
+    renderDashUsers(users);
+    renderDashNodes(nodes);
+    renderDashActivity(acts);
+    renderDashHealth(h,nodes);
+  }catch(e){
+    console.error("dashboard",e);
+    $("dash-last-sync")?.replaceChildren(document.createTextNode("خطا در دریافت اطلاعات"));
+  }
+}
+async function alphaRefreshDashboard(){await dash()}
+function renderDashTraffic(d){
+  const items=d?.items||[], chart=$("dash-traffic-chart");
+  const current=Number(d?.current_used_gb||0);
+  if($("dash-traffic-current"))$("dash-traffic-current").textContent=current.toFixed(2)+" GB";
+  if($("dash-traffic-min"))$("dash-traffic-min").textContent=items.length?`${items.length} نقطه ثبت‌شده`:"بدون Snapshot";
+  if(!chart)return;
+  if(!items.length){chart.innerHTML='<div class="dash-chart-empty"><span>◌</span><b>هنوز تاریخچه‌ای ثبت نشده</b><small>با Cron ساعتی یا «ثبت نقطه فعلی» داده واقعی ایجاد می‌شود.</small></div>';return}
+  const vals=items.map(x=>Number(x.total_used_gb||0));
+  const min=Math.min(...vals), max=Math.max(...vals), span=Math.max(max-min,.01);
+  const W=900,H=230,pad=18;
+  const points=vals.map((v,i)=>{const x=pad+(i/(Math.max(vals.length-1,1)))*(W-pad*2);const y=H-pad-((v-min)/span)*(H-pad*2);return [x,y]});
+  const line=points.map(p=>p.join(",")).join(" ");
+  const area=`M ${points[0][0]} ${H-pad} L ${points.map(p=>p.join(" ")).join(" L ")} L ${points.at(-1)[0]} ${H-pad} Z`;
+  chart.innerHTML=`<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-label="نمودار ترافیک ۲۴ ساعت"><defs><linearGradient id="alphaTrafficFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#39d9ff" stop-opacity=".28"/><stop offset="1" stop-color="#8d6cff" stop-opacity="0"/></linearGradient><filter id="alphaGlow"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><path d="${area}" fill="url(#alphaTrafficFill)"/><polyline points="${line}" fill="none" stroke="#39d9ff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" filter="url(#alphaGlow)"/><polyline points="${line}" fill="none" stroke="#8d6cff" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" opacity=".85"/>${points.map((p,i)=>`<circle cx="${p[0]}" cy="${p[1]}" r="${i===points.length-1?5:3}" fill="#07101d" stroke="#39d9ff" stroke-width="2"><title>${new Date(items[i].captured_at).toLocaleString("fa-IR")} — ${vals[i].toFixed(2)} GB</title></circle>`).join("")}</svg><div class="dash-chart-axis"><span>${new Date(items[0].captured_at).toLocaleTimeString("fa-IR",{hour:"2-digit",minute:"2-digit"})}</span><span>۲۴ ساعت</span><span>${new Date(items.at(-1).captured_at).toLocaleTimeString("fa-IR",{hour:"2-digit",minute:"2-digit"})}</span></div>`;
+}
+function renderDashUsers(users){
+  const box=$("dash-recent-users");if(!box)return;
+  const rows=users.slice().sort((a,b)=>Number(b.created_at||0)-Number(a.created_at||0)).slice(0,5);
+  box.innerHTML=rows.length?rows.map((u,i)=>{const used=Number(u.used_gb||0),quota=Number(u.quota_gb||0);const pct=quota?Math.min(100,used/quota*100):0;return `<div class="dash-user-row"><div class="dash-avatar">${esc((u.username||"A").slice(0,1).toUpperCase())}</div><div class="dash-user-main"><b>${esc(u.username)}</b><small>${esc(u.protocol||"VLESS")} · ${esc(u.country||"—")}</small><div class="dash-progress"><i style="width:${pct}%"></i></div></div><div class="dash-user-meta"><b>${used.toFixed(1)} GB</b><span class="status-pill ${u.status==='active'?'ok':''}">${esc(u.status||'—')}</span></div></div>`}).join(""):'<div class="dash-empty">هنوز کاربری ثبت نشده است.</div>';
+}
+function renderDashNodes(nodes){
+  const box=$("dash-node-list");if(!box)return;
+  const rows=nodes.slice().sort((a,b)=>(a.status==='online'?0:1)-(b.status==='online'?0:1)).slice(0,5);
+  box.innerHTML=rows.length?rows.map(n=>`<div class="dash-node-row"><div class="node-icon">◇</div><div class="dash-node-main"><b>${esc(n.name||"Node")}</b><small>${esc(n.country||"—")} · ${esc(n.protocol||"—")}</small></div><div class="dash-node-meta"><span class="node-state ${n.status==='online'?'online':'offline'}">${n.status==='online'?'ONLINE':'OFFLINE'}</span><b>${n.latency_ms?`${n.latency_ms} ms`:'—'}</b></div></div>`).join(""):'<div class="dash-empty">هنوز Node ثبت نشده است.</div>';
+}
+function renderDashActivity(acts){
+  const box=$("dash-activity-feed");if(!box)return;
+  const rows=acts.slice().sort((a,b)=>Number(b.id||0)-Number(a.id||0)).slice(0,6);
+  box.innerHTML=rows.length?rows.map(x=>`<div class="dash-activity-row"><span class="activity-icon">•</span><div><b>${esc(x.action||"activity")}</b><small>${esc(x.details||"بدون جزئیات")}</small></div><time>${esc(formatDateTime(x.created_at))}</time></div>`).join(""):'<div class="dash-empty">فعالیتی ثبت نشده است.</div>';
+}
+function renderDashHealth(h,nodes){
+  const checks=h?.checks||[];const ok=checks.length?checks.filter(x=>x.ok).length:3;const total=checks.length||3;const pct=Math.round(ok/total*100);
+  if($("dash-health-ring"))$("dash-health-ring").textContent=pct+"%";
+  if($("health-time"))$("health-time").textContent=new Date().toLocaleTimeString("fa-IR",{hour:"2-digit",minute:"2-digit"});
+  const pwa=('serviceWorker' in navigator)?'Ready':'Unavailable';if($("health-pwa"))$("health-pwa").textContent=pwa;
+  const nodeOnline=nodes.some(x=>x.status==='online'); if($("health-worker"))$("health-worker").textContent='Online';if($("health-db"))$("health-db").textContent='Connected';if($("health-auth"))$("health-auth").textContent='Protected';
+}async function loadUsers(){us=await api("/api/users");renderUsers()}
 function renderUsers(){let q=($("search").value||"").toLowerCase();$("ut").innerHTML=us.filter(x=>x.username.toLowerCase().includes(q)).map(x=>`<tr><td>${esc(x.username)}</td><td>${esc(x.protocol)}</td><td>${esc(x.country)}</td><td>${x.used_gb}/${x.quota_gb} GB</td><td>${esc(x.status)}</td><td><button onclick="profile(${x.id})">جزئیات</button> <button onclick="toggle(${x.id},'${x.status==="active"?"disabled":"active"}')">${x.status==="active"?"غیرفعال":"فعال"}</button> <button onclick="del(${x.id})">حذف</button></td></tr>`).join("")||"<tr><td colspan=6>کاربری وجود ندارد</td></tr>"}
 async function toggle(id,s){await api("/api/users/"+id,{method:"PATCH",body:JSON.stringify({status:s})});loadUsers()}
 async function del(id){if(confirm("حذف شود؟")){await api("/api/users/"+id,{method:"DELETE"});loadUsers()}}
