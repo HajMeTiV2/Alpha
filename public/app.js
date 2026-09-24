@@ -403,3 +403,48 @@ async function alphaRunReleaseCheck(){
   if(ap)ap.textContent=r.ok?"Healthy":"Failed";
 }
 document.addEventListener("DOMContentLoaded",()=>{alphaRunReleaseCheck()});
+
+/* ALPHA v4.3.1 — authentication bootstrap + page navigation repair */
+async function alphaBoot(){
+  try{
+    const r=await fetch('/api/auth/me',{method:'GET',credentials:'same-origin',cache:'no-store',headers:{'accept':'application/json'}});
+    const d=await r.json().catch(()=>({}));
+    if(d.authenticated){
+      show('app');
+      document.querySelectorAll('#app .page').forEach(p=>p.classList.add('hidden'));
+      const dashPage=document.getElementById('dashboard');
+      if(dashPage)dashPage.classList.remove('hidden');
+      dash().catch(()=>{});
+      return;
+    }
+  }catch(e){}
+  show('login');
+}
+
+function alphaOpenPage(name){
+  const map={
+    dashboard:'dashboard',
+    users:'users-page',
+    nodes:'nodes-page',
+    subscriptions:'subscriptions-page',
+    traffic:'traffic-page',
+    activity:'activity-page',
+    settings:'settings-page'
+  };
+  const id=map[name]||'dashboard';
+  document.querySelectorAll('#app .page').forEach(p=>p.classList.add('hidden'));
+  const page=document.getElementById(id);
+  if(page)page.classList.remove('hidden');
+  document.querySelectorAll('aside nav button[data-p]').forEach(b=>b.classList.toggle('active',b.dataset.p===name));
+  if(name==='dashboard')dash().catch(()=>{});
+  if(name==='users'&&typeof loadProUsers==='function')loadProUsers().catch(()=>{});
+  if(name==='nodes'&&typeof loadNodeMonitor==='function')loadNodeMonitor().catch(()=>{});
+  if(name==='subscriptions'&&typeof alphaLoadSubscriptions==='function')alphaLoadSubscriptions().catch(()=>{});
+}
+
+document.addEventListener('DOMContentLoaded',()=>{
+  document.querySelectorAll('aside nav button[data-p]').forEach(btn=>{
+    btn.addEventListener('click',()=>alphaOpenPage(btn.dataset.p));
+  });
+  alphaBoot();
+});
