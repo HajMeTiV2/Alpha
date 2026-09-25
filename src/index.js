@@ -1,5 +1,8 @@
-const ALPHA_VERSION = "6.18.0";
+const ALPHA_VERSION = "6.19.0";
 const enc = new TextEncoder();
+const ZEUS_RAW_BASE = "https://raw.githubusercontent.com/panel-zeus/Z-E-U-S/refs/heads/main";
+const ZEUS_PROXY_COUNTRIES = "AA AE AF AL ALL AM AO AR AT AU AZ BA BB BD BE BF BG BH BI BJ BO BR BS BT BW BY BZ CA CD CG CH CI CL CM CN CO CR CW CY CZ DE DK DO DZ EC EE EG ES FI FR GA GB GE GH GM GN GQ GR GT GU HK HN HR HT HU ID IE IL IN IQ IR IS IT JM JO JP KE KG KH KR KW KZ LA LB LK LS LT LU LV LY MA MD ME MG MK ML MM MN MO MT MU MV MW MX MY MZ NA NG NI NL NO NP NZ OM PA PE PG PH PK PL PR PS PT PY QA RE RO RS RU RW SA SC SE SG SI SK SL SN SO SS SY SZ TG TH TJ TM TN TR TT TW TZ UA UG US UY UZ VE VI VN VU WS XK YE YT ZA ZM ZW".split(" ");
+const ZEUS_SUGGESTION_CACHE = new Map();
 function withSecurityHeaders(response){
   const h=new Headers(response.headers);
   h.set("X-Content-Type-Options","nosniff");
@@ -155,6 +158,8 @@ async function api(req,env){
   }
   if(p.startsWith("/api/users/")&&req.method==="DELETE"){const id=p.split("/").pop();await env.DB.prepare("DELETE FROM users WHERE id=?").bind(id).run();await log(env,"user_deleted",id);return json({ok:true})}
   // ALPHA 6.18 Config Factory
+  if(p==="/api/config/suggestions"&&req.method==="GET")return configSuggestions(req,env);
+  if(p==="/api/config/suggestions/import"&&req.method==="POST")return configSuggestionImport(req,env);
   if(p==="/api/config/ip-repository"&&req.method==="GET")return configRepoList(req,env,"ip");
   if(p==="/api/config/ip-repository"&&req.method==="POST")return configRepoCreate(req,env,"ip");
   const ipRepoMatch=p.match(/^\/api\/config\/ip-repository\/([^/]+)$/);
@@ -338,13 +343,83 @@ async function alphaWebhookTest(req,env,id){const w=await env.DB.prepare("SELECT
 async function alphaIntegrationsOverview(req,env){const [k,w,d]=await Promise.all([env.DB.prepare("SELECT COUNT(*) total,SUM(enabled) enabled,COALESCE(SUM(usage_count),0) usage FROM api_keys").first(),env.DB.prepare("SELECT COUNT(*) total,SUM(enabled) enabled,COALESCE(SUM(failure_count),0) failures FROM webhooks").first(),env.DB.prepare("SELECT COUNT(*) total,SUM(CASE WHEN status='success' THEN 1 ELSE 0 END) success FROM webhook_deliveries WHERE created_at>=datetime('now','-24 hours')").first()]);return json({api_keys:{total:Number(k?.total||0),enabled:Number(k?.enabled||0),usage:Number(k?.usage||0)},webhooks:{total:Number(w?.total||0),enabled:Number(w?.enabled||0),failures:Number(w?.failures||0)},deliveries24h:{total:Number(d?.total||0),success:Number(d?.success||0)}})}
 async function alphaIntegrationHealth(req,env){const key=await alphaApiKeyAuth(req,env,"read");if(!key)return json({error:"Valid X-ALPHA-API-Key is required"},401);return json({ok:true,service:"ALPHA",version:ALPHA_VERSION,timestamp:Date.now(),key:key.key_prefix})}
 
+function zeusSample(items,limit){
+  const a=[...new Set(items.filter(Boolean))];
+  for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}
+  return a.slice(0,Math.max(1,Math.min(100,limit||24)));
+}
+function isZeusIp(v){
+  const s=String(v||"").trim();
+  if(/^((25[0-5]|2[0-4]\d|1?\d?\d)(\.|$)){4}$/.test(s))return true;
+  return s.includes(":")&&/^[0-9a-f:]+$/i.test(s)&&s.split(":").length>=3;
+}
+function parseZeusProxy(raw,country){
+  const value=String(raw||"").trim(); if(!value)return null;
+  try{
+    const u=new URL(value);
+    const host=u.hostname.replace(/^\[|\]$/g,"");
+    const port=Number(u.port||((u.protocol||"").toLowerCase().startsWith("socks")?1080:80));
+    const type=(u.protocol||"http:").replace(":","").toUpperCase();
+    return {value,host,port,type,country:country||"ALL",source:"zeus",verified:false};
+  }catch(_){return null;}
+}
+async function fetchZeusText(path){
+  const url=`${ZEUS_RAW_BASE}/${path}`;
+  const cached=ZEUS_SUGGESTION_CACHE.get(url);
+  if(cached&&cached.expires>Date.now())return cached.text;
+  const r=await fetch(url,{headers:{"User-Agent":"ALPHA-Config-Factory/6.18"},cf:{cacheTtl:600,cacheEverything:true}});
+  if(!r.ok)throw new Error(`Zeus source unavailable (${r.status})`);
+  const text=await r.text();
+  ZEUS_SUGGESTION_CACHE.set(url,{text,expires:Date.now()+10*60*1000});
+  return text;
+}
+async function configSuggestions(req,env){
+  const u=new URL(req.url),type=String(u.searchParams.get("type")||"ip").toLowerCase(),limit=Math.max(1,Math.min(100,Number(u.searchParams.get("limit")||24)||24));
+  try{
+    if(type==="ip"){
+      const text=await fetchZeusText("ips.txt");
+      const items=zeusSample(text.split(/\r?\n/).map(x=>x.trim()).filter(isZeusIp),limit);
+      return json({source:"ZEUS public repository",type:"ip",items:items.map((address,i)=>({id:`zeus-ip-${i}-${btoa(address).replace(/=+$/,"" )}`,address,source:"zeus",verified:false,status:"unverified"})),count:items.length,generated_at:Date.now()});
+    }
+    if(type==="proxy"){
+      const country=String(u.searchParams.get("country")||"ALL").toUpperCase();
+      if(!ZEUS_PROXY_COUNTRIES.includes(country))return json({error:"Unsupported country"},400);
+      const text=await fetchZeusText(`proxy/${country}.txt`);
+      const items=zeusSample(text.split(/\r?\n/).map(x=>parseZeusProxy(x,country)).filter(Boolean),limit);
+      return json({source:"ZEUS public repository",type:"proxy",country,items,count:items.length,generated_at:Date.now()});
+    }
+    return json({error:"Unsupported suggestion type"},400);
+  }catch(e){return json({error:e?.message||"Could not load suggestions"},502)}
+}
+async function configSuggestionImport(req,env){
+  const b=await req.json().catch(()=>({})),type=String(b.type||"").toLowerCase(),item=b.item||{};
+  if(type!=="ip"&&type!=="proxy")return json({error:"Invalid suggestion type"},400);
+  try{
+    if(type==="ip"){
+      const address=String(item.address||"").trim();if(!address)return json({error:"IP is required"},400);
+      const existing=await env.DB.prepare("SELECT id FROM config_ip_repository WHERE address=? LIMIT 1").bind(address).first();
+      if(existing)return json({ok:true,id:existing.id,existing:true});
+      const id=crypto.randomUUID(),now=Date.now();
+      await env.DB.prepare("INSERT INTO config_ip_repository(id,address,port,country,city,provider,source,status,latency_ms,last_checked_at,tags,notes,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(id,address,Number(item.port||0)||null,String(item.country||"Unknown"),"","", "zeus","active",null,null,JSON.stringify(["suggested","zeus"]),"پیشنهاد واردشده از مخزن عمومی ZEUS؛ قبل از استفاده تست شود.",now,now).run();
+      await log(env,"config.ip.import_suggestion","admin",address);return json({ok:true,id,existing:false},201);
+    }
+    const host=String(item.host||"").trim(),port=Number(item.port||0),typeName=String(item.type||"HTTP").toUpperCase();if(!host||!port)return json({error:"Proxy host and port are required"},400);
+    const existing=await env.DB.prepare("SELECT id FROM config_proxy_repository WHERE host=? AND port=? AND type=? LIMIT 1").bind(host,port,typeName).first();
+    if(existing)return json({ok:true,id:existing.id,existing:true});
+    const id=crypto.randomUUID(),now=Date.now();
+    await env.DB.prepare("INSERT INTO config_proxy_repository(id,host,port,type,username,password,country,provider,source,status,latency_ms,last_checked_at,tags,notes,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(id,host,port,typeName,String(item.username||""),String(item.password||""),String(item.country||"ALL"),"","zeus","active",null,null,JSON.stringify(["suggested","zeus"]),"پیشنهاد واردشده از مخزن عمومی ZEUS؛ قبل از استفاده تست شود.",now,now).run();
+    await log(env,"config.proxy.import_suggestion","admin",`${host}:${port}`);return json({ok:true,id,existing:false},201);
+  }catch(e){return json({error:e?.message||"Could not import suggestion"},409)}
+}
 async function configRepoList(req,env,type){
   const table=type==="ip"?"config_ip_repository":"config_proxy_repository";
   const q=String(new URL(req.url).searchParams.get("q")||"").trim();
   const status=String(new URL(req.url).searchParams.get("status")||"").trim();
   const where=[],bind=[];
+  const country=String(new URL(req.url).searchParams.get("country")||"").trim();
   if(q){where.push(type==="ip"?"(address LIKE ? OR country LIKE ? OR provider LIKE ? OR source LIKE ? OR tags LIKE ?)":"(host LIKE ? OR country LIKE ? OR provider LIKE ? OR source LIKE ? OR tags LIKE ?)");for(let i=0;i<5;i++)bind.push(`%${q}%`)}
   if(status){where.push("status=?");bind.push(status)}
+  if(country && country!=="ALL"){where.push("country=?");bind.push(country)}
   const cols=type==="ip"?"id,address,port,country,city,provider,source,status,latency_ms,last_checked_at,tags,notes,created_at,updated_at":"id,host,port,type,username,country,provider,source,status,latency_ms,last_checked_at,tags,notes,created_at,updated_at";
   const sql=`SELECT ${cols} FROM ${table} ${where.length?"WHERE "+where.join(" AND "):""} ORDER BY updated_at DESC,id DESC LIMIT 200`;
   const r=await env.DB.prepare(sql).bind(...bind).all();return json({items:r.results||[],type});
@@ -381,10 +456,14 @@ async function configTemplates(req,env){const r=await env.DB.prepare("SELECT id,
 async function configTemplateCreate(req,env){const b=await req.json().catch(()=>({}));const name=String(b.name||"").trim();if(!name)return json({error:"name is required"},400);const id=crypto.randomUUID(),now=Date.now(),settings=JSON.stringify(b.settings||{});await env.DB.prepare("INSERT INTO config_templates(id,name,mode,settings_json,created_at,updated_at) VALUES(?,?,?,?,?,?)").bind(id,name,String(b.mode||"simple"),settings,now,now).run();await log(env,"config.template.create","admin",name);return json({ok:true,id},201)}
 async function configTemplateDelete(req,env,id){const r=await env.DB.prepare("DELETE FROM config_templates WHERE id=?").bind(id).run();if(!r.meta.changes)return json({error:"not found"},404);await log(env,"config.template.delete","admin",id);return json({ok:true})}
 function configBuildText(b,user,ip){
-  const protocol=String(b.protocol||user?.protocol||"VLESS").toUpperCase();const address=String(ip?.address||b.address||"").trim();const port=Number(b.port||ip?.port||443);const uuid=String(user?.client_uuid||b.uuid||"");
-  if(protocol==="VLESS"&&uuid&&address){const qs=new URLSearchParams();qs.set("type",String(b.transport||"tcp"));qs.set("security",String(b.security||"none"));if(b.sni)qs.set("sni",String(b.sni));if(b.path)qs.set("path",String(b.path));if(b.host)qs.set("host",String(b.host));if(b.fp)qs.set("fp",String(b.fp));if(b.flow)qs.set("flow",String(b.flow));return `vless://${uuid}@${address}:${port}?${qs.toString()}#${encodeURIComponent(String(b.name||user?.username||"ALPHA"))}`}
-  if(address)return `${protocol} ${address}:${port}`;
-  return "";
+  const protocol=String(b.protocol||user?.protocol||"VLESS").toUpperCase();const address=String(ip?.address||b.address||"").trim();const ports=Array.isArray(b.ports)&&b.ports.length?b.ports.map(Number).filter(Boolean):[Number(b.port||ip?.port||443)];const uuid=String(user?.client_uuid||b.uuid||"");
+  if(!address)return "";
+  const links=[];
+  for(const port of [...new Set(ports)]){
+    if(protocol==="VLESS"&&uuid){const qs=new URLSearchParams();qs.set("type",String(b.transport||"tcp"));qs.set("security",String(b.security||"none"));if(b.sni)qs.set("sni",String(b.sni));if(b.path)qs.set("path",String(b.path));if(b.host)qs.set("host",String(b.host));if(b.fp||b.fingerprint)qs.set("fp",String(b.fp||b.fingerprint));if(b.flow)qs.set("flow",String(b.flow));if(b.cipher_suites)qs.set("ciphers",String(b.cipher_suites));if(b.tls_mask)qs.set("tls-mask",String(b.tls_mask));if(b.frag_len)qs.set("frag-len",String(b.frag_len));if(b.frag_int)qs.set("frag-int",String(b.frag_int));links.push(`vless://${uuid}@${address}:${port}?${qs.toString()}#${encodeURIComponent(String(b.name||user?.username||"ALPHA"))}`);}
+    else links.push(`${protocol} ${address}:${port}`);
+  }
+  return links.join("\n");
 }
 async function configGenerate(req,env){
   const b=await req.json().catch(()=>({}));const userId=b.user_id?String(b.user_id):"";let user=null,ip=null,proxy=null;
@@ -392,7 +471,7 @@ async function configGenerate(req,env){
   if(b.ip_id)ip=await env.DB.prepare("SELECT * FROM config_ip_repository WHERE id=? AND status='active'").bind(String(b.ip_id)).first();
   if(b.proxy_id)proxy=await env.DB.prepare("SELECT id,host,port,type,username,country,provider,status,latency_ms,tags,notes FROM config_proxy_repository WHERE id=? AND status='active'").bind(String(b.proxy_id)).first();
   const settings={...b};delete settings.user_id;delete settings.ip_id;delete settings.proxy_id;
-  const errors=[];if(!settings.protocol)settings.protocol=user?.protocol||"VLESS";if(!ip && !settings.address)errors.push("یک IP از مخزن انتخاب کنید");if(String(settings.protocol).toUpperCase()==="VLESS"&&!user&&!settings.uuid)errors.push("کاربر برای UUID انتخاب نشده است");if(errors.length)return json({valid:false,errors},400);
+  const errors=[];if(!settings.protocol)settings.protocol=user?.protocol||"VLESS";if(!Array.isArray(settings.ports)||!settings.ports.length)settings.ports=[Number(settings.port||ip?.port||443)];if(!ip && !settings.address)errors.push("یک IP از مخزن انتخاب کنید");if(String(settings.protocol).toUpperCase()==="VLESS"&&!user&&!settings.uuid)errors.push("کاربر برای UUID انتخاب نشده است");if(!settings.ports.length)errors.push("حداقل یک پورت انتخاب کنید");if(errors.length)return json({valid:false,errors},400);
   const configText=configBuildText(settings,user,ip);if(!configText)return json({valid:false,errors:["اطلاعات کافی برای ساخت کانفیگ وجود ندارد"]},400);
   return json({valid:true,config:configText,settings,ip,proxy,user:user?{id:user.id,username:user.username,protocol:user.protocol}:null,generated_at:Date.now()});
 }
