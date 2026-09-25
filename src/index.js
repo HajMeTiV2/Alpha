@@ -1,4 +1,4 @@
-const ALPHA_VERSION = "6.16.0";
+const ALPHA_VERSION = "6.18.0";
 const enc = new TextEncoder();
 function withSecurityHeaders(response){
   const h=new Headers(response.headers);
@@ -154,10 +154,32 @@ async function api(req,env){
     await log(env,"user_updated",id); return json({ok:true});
   }
   if(p.startsWith("/api/users/")&&req.method==="DELETE"){const id=p.split("/").pop();await env.DB.prepare("DELETE FROM users WHERE id=?").bind(id).run();await log(env,"user_deleted",id);return json({ok:true})}
-  if(p==="/api/nodes"&&req.method==="GET")return json((await env.DB.prepare("SELECT * FROM nodes ORDER BY id DESC").all()).results||[]);
+  // ALPHA 6.18 Config Factory
+  if(p==="/api/config/ip-repository"&&req.method==="GET")return configRepoList(req,env,"ip");
+  if(p==="/api/config/ip-repository"&&req.method==="POST")return configRepoCreate(req,env,"ip");
+  const ipRepoMatch=p.match(/^\/api\/config\/ip-repository\/([^/]+)$/);
+  if(ipRepoMatch&&req.method==="PATCH")return configRepoUpdate(req,env,"ip",ipRepoMatch[1]);
+  if(ipRepoMatch&&req.method==="DELETE")return configRepoDelete(req,env,"ip",ipRepoMatch[1]);
+  if(p==="/api/config/proxy-repository"&&req.method==="GET")return configRepoList(req,env,"proxy");
+  if(p==="/api/config/proxy-repository"&&req.method==="POST")return configRepoCreate(req,env,"proxy");
+  const proxyRepoMatch=p.match(/^\/api\/config\/proxy-repository\/([^/]+)$/);
+  if(proxyRepoMatch&&req.method==="PATCH")return configRepoUpdate(req,env,"proxy",proxyRepoMatch[1]);
+  if(proxyRepoMatch&&req.method==="DELETE")return configRepoDelete(req,env,"proxy",proxyRepoMatch[1]);
+  if(p==="/api/config/templates"&&req.method==="GET")return configTemplates(req,env);
+  if(p==="/api/config/templates"&&req.method==="POST")return configTemplateCreate(req,env);
+  const templateMatch=p.match(/^\/api\/config\/templates\/([^/]+)$/);
+  if(templateMatch&&req.method==="DELETE")return configTemplateDelete(req,env,templateMatch[1]);
+  if(p==="/api/config/generate"&&req.method==="POST")return configGenerate(req,env);
+  if(p==="/api/config/snapshots"&&req.method==="GET")return configSnapshots(req,env);
+  if(p==="/api/config/snapshots"&&req.method==="POST")return configSnapshotCreate(req,env);
+
+  if(p==="/api/nodes"&&req.method==="GET")return listNodes(req,env);
   if(p==="/api/nodes"&&req.method==="POST")return createNode(req,env);
   if(p.startsWith("/api/nodes/")&&req.method==="PATCH")return updateNode(req,env,p.split("/").pop());
   if(p.startsWith("/api/nodes/")&&req.method==="DELETE")return deleteNode(req,env,p.split("/").pop());
+  const nodeOpsMatch=p.match(/^\/api\/nodes\/([^/]+)\/operations$/);
+  if(nodeOpsMatch && req.method==="POST")return nodeOperations(req,env,nodeOpsMatch[1]);
+  if(p==="/api/nodes/operations" && req.method==="GET")return nodeOperationsSummary(req,env);
   if(p==="/api/subscriptions"&&req.method==="GET")return subscriptions(req,env);
   if(p==="/api/subscriptions"&&req.method==="POST")return createSubscription(req,env);
   if(p.startsWith("/api/subscriptions/")&&req.method==="DELETE")return deleteSubscription(req,env,p.split("/").pop());
@@ -316,6 +338,121 @@ async function alphaWebhookTest(req,env,id){const w=await env.DB.prepare("SELECT
 async function alphaIntegrationsOverview(req,env){const [k,w,d]=await Promise.all([env.DB.prepare("SELECT COUNT(*) total,SUM(enabled) enabled,COALESCE(SUM(usage_count),0) usage FROM api_keys").first(),env.DB.prepare("SELECT COUNT(*) total,SUM(enabled) enabled,COALESCE(SUM(failure_count),0) failures FROM webhooks").first(),env.DB.prepare("SELECT COUNT(*) total,SUM(CASE WHEN status='success' THEN 1 ELSE 0 END) success FROM webhook_deliveries WHERE created_at>=datetime('now','-24 hours')").first()]);return json({api_keys:{total:Number(k?.total||0),enabled:Number(k?.enabled||0),usage:Number(k?.usage||0)},webhooks:{total:Number(w?.total||0),enabled:Number(w?.enabled||0),failures:Number(w?.failures||0)},deliveries24h:{total:Number(d?.total||0),success:Number(d?.success||0)}})}
 async function alphaIntegrationHealth(req,env){const key=await alphaApiKeyAuth(req,env,"read");if(!key)return json({error:"Valid X-ALPHA-API-Key is required"},401);return json({ok:true,service:"ALPHA",version:ALPHA_VERSION,timestamp:Date.now(),key:key.key_prefix})}
 
+async function configRepoList(req,env,type){
+  const table=type==="ip"?"config_ip_repository":"config_proxy_repository";
+  const q=String(new URL(req.url).searchParams.get("q")||"").trim();
+  const status=String(new URL(req.url).searchParams.get("status")||"").trim();
+  const where=[],bind=[];
+  if(q){where.push(type==="ip"?"(address LIKE ? OR country LIKE ? OR provider LIKE ? OR source LIKE ? OR tags LIKE ?)":"(host LIKE ? OR country LIKE ? OR provider LIKE ? OR source LIKE ? OR tags LIKE ?)");for(let i=0;i<5;i++)bind.push(`%${q}%`)}
+  if(status){where.push("status=?");bind.push(status)}
+  const cols=type==="ip"?"id,address,port,country,city,provider,source,status,latency_ms,last_checked_at,tags,notes,created_at,updated_at":"id,host,port,type,username,country,provider,source,status,latency_ms,last_checked_at,tags,notes,created_at,updated_at";
+  const sql=`SELECT ${cols} FROM ${table} ${where.length?"WHERE "+where.join(" AND "):""} ORDER BY updated_at DESC,id DESC LIMIT 200`;
+  const r=await env.DB.prepare(sql).bind(...bind).all();return json({items:r.results||[],type});
+}
+async function configRepoCreate(req,env,type){
+  const b=await req.json().catch(()=>({})),now=Date.now(),id=crypto.randomUUID();
+  try{
+    if(type==="ip"){
+      const address=String(b.address||"").trim();if(!address)return json({error:"address is required"},400);
+      await env.DB.prepare("INSERT INTO config_ip_repository(id,address,port,country,city,provider,source,status,latency_ms,last_checked_at,tags,notes,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(id,address,Number(b.port||0)||null,String(b.country||"Unknown"),String(b.city||""),String(b.provider||""),String(b.source||"manual"),String(b.status||"active"),Number.isFinite(Number(b.latency_ms))?Number(b.latency_ms):null,b.last_checked_at||null,JSON.stringify(Array.isArray(b.tags)?b.tags:[]),String(b.notes||""),now,now).run();
+    }else{
+      const host=String(b.host||"").trim(),port=Number(b.port||0);if(!host||!port)return json({error:"host and port are required"},400);
+      await env.DB.prepare("INSERT INTO config_proxy_repository(id,host,port,type,username,password,country,provider,source,status,latency_ms,last_checked_at,tags,notes,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(id,host,port,String(b.type||"HTTP").toUpperCase(),String(b.username||""),String(b.password||""),String(b.country||"Unknown"),String(b.provider||""),String(b.source||"manual"),String(b.status||"active"),Number.isFinite(Number(b.latency_ms))?Number(b.latency_ms):null,b.last_checked_at||null,JSON.stringify(Array.isArray(b.tags)?b.tags:[]),String(b.notes||""),now,now).run();
+    }
+    await log(env,`config.${type}.create`,"admin",id);return json({ok:true,id},201);
+  }catch(e){return json({error:"Could not create repository item",details:String(e?.message||"")},409)}
+}
+async function configRepoUpdate(req,env,type,id){
+  const b=await req.json().catch(()=>({})),table=type==="ip"?"config_ip_repository":"config_proxy_repository";
+  const now=Date.now();
+  const fields=type==="ip"?[
+    ["address",b.address],["port",b.port==null?null:Number(b.port)||null],["country",b.country],["city",b.city],["provider",b.provider],["source",b.source],["status",b.status],["latency_ms",b.latency_ms==null?null:Number(b.latency_ms)],["last_checked_at",b.last_checked_at],["tags",Array.isArray(b.tags)?JSON.stringify(b.tags):b.tags],["notes",b.notes]
+  ]:[
+    ["host",b.host],["port",b.port==null?null:Number(b.port)||null],["type",b.type],["username",b.username],["password",b.password],["country",b.country],["provider",b.provider],["source",b.source],["status",b.status],["latency_ms",b.latency_ms==null?null:Number(b.latency_ms)],["last_checked_at",b.last_checked_at],["tags",Array.isArray(b.tags)?JSON.stringify(b.tags):b.tags],["notes",b.notes]
+  ];
+  const allowed=fields.filter(([,v])=>v!==undefined).map(([k])=>k),values=fields.filter(([,v])=>v!==undefined).map(([,v])=>v);
+  if(!allowed.length)return json({error:"No changes supplied"},400);
+  allowed.push("updated_at");values.push(now);
+  const set=allowed.map(k=>`${k}=?`).join(",");const r=await env.DB.prepare(`UPDATE ${table} SET ${set} WHERE id=?`).bind(...values,id).run();
+  if(!r.meta.changes)return json({error:"not found"},404);await log(env,`config.${type}.update`,"admin",id);return json({ok:true});
+}
+async function configRepoDelete(req,env,type,id){const table=type==="ip"?"config_ip_repository":"config_proxy_repository";const r=await env.DB.prepare(`DELETE FROM ${table} WHERE id=?`).bind(id).run();if(!r.meta.changes)return json({error:"not found"},404);await log(env,`config.${type}.delete`,"admin",id);return json({ok:true})}
+async function configTemplates(req,env){const r=await env.DB.prepare("SELECT id,name,mode,settings_json,created_at,updated_at FROM config_templates ORDER BY updated_at DESC,id DESC LIMIT 100").all();return json({items:r.results||[]})}
+async function configTemplateCreate(req,env){const b=await req.json().catch(()=>({}));const name=String(b.name||"").trim();if(!name)return json({error:"name is required"},400);const id=crypto.randomUUID(),now=Date.now(),settings=JSON.stringify(b.settings||{});await env.DB.prepare("INSERT INTO config_templates(id,name,mode,settings_json,created_at,updated_at) VALUES(?,?,?,?,?,?)").bind(id,name,String(b.mode||"simple"),settings,now,now).run();await log(env,"config.template.create","admin",name);return json({ok:true,id},201)}
+async function configTemplateDelete(req,env,id){const r=await env.DB.prepare("DELETE FROM config_templates WHERE id=?").bind(id).run();if(!r.meta.changes)return json({error:"not found"},404);await log(env,"config.template.delete","admin",id);return json({ok:true})}
+function configBuildText(b,user,ip){
+  const protocol=String(b.protocol||user?.protocol||"VLESS").toUpperCase();const address=String(ip?.address||b.address||"").trim();const port=Number(b.port||ip?.port||443);const uuid=String(user?.client_uuid||b.uuid||"");
+  if(protocol==="VLESS"&&uuid&&address){const qs=new URLSearchParams();qs.set("type",String(b.transport||"tcp"));qs.set("security",String(b.security||"none"));if(b.sni)qs.set("sni",String(b.sni));if(b.path)qs.set("path",String(b.path));if(b.host)qs.set("host",String(b.host));if(b.fp)qs.set("fp",String(b.fp));if(b.flow)qs.set("flow",String(b.flow));return `vless://${uuid}@${address}:${port}?${qs.toString()}#${encodeURIComponent(String(b.name||user?.username||"ALPHA"))}`}
+  if(address)return `${protocol} ${address}:${port}`;
+  return "";
+}
+async function configGenerate(req,env){
+  const b=await req.json().catch(()=>({}));const userId=b.user_id?String(b.user_id):"";let user=null,ip=null,proxy=null;
+  if(userId){user=await env.DB.prepare("SELECT id,username,protocol,client_uuid,subscription_token FROM users WHERE id=?").bind(userId).first();if(!user)return json({error:"user not found"},404)}
+  if(b.ip_id)ip=await env.DB.prepare("SELECT * FROM config_ip_repository WHERE id=? AND status='active'").bind(String(b.ip_id)).first();
+  if(b.proxy_id)proxy=await env.DB.prepare("SELECT id,host,port,type,username,country,provider,status,latency_ms,tags,notes FROM config_proxy_repository WHERE id=? AND status='active'").bind(String(b.proxy_id)).first();
+  const settings={...b};delete settings.user_id;delete settings.ip_id;delete settings.proxy_id;
+  const errors=[];if(!settings.protocol)settings.protocol=user?.protocol||"VLESS";if(!ip && !settings.address)errors.push("یک IP از مخزن انتخاب کنید");if(String(settings.protocol).toUpperCase()==="VLESS"&&!user&&!settings.uuid)errors.push("کاربر برای UUID انتخاب نشده است");if(errors.length)return json({valid:false,errors},400);
+  const configText=configBuildText(settings,user,ip);if(!configText)return json({valid:false,errors:["اطلاعات کافی برای ساخت کانفیگ وجود ندارد"]},400);
+  return json({valid:true,config:configText,settings,ip,proxy,user:user?{id:user.id,username:user.username,protocol:user.protocol}:null,generated_at:Date.now()});
+}
+async function configSnapshots(req,env){const r=await env.DB.prepare("SELECT id,name,version,status,user_id,template_id,settings_json,config_text,created_at,updated_at FROM config_snapshots ORDER BY created_at DESC LIMIT 100").all();return json({items:r.results||[]})}
+async function configSnapshotCreate(req,env){
+  const b=await req.json().catch(()=>({}));const name=String(b.name||"Config").trim().slice(0,120);const settings=b.settings||{};const generated=await configGenerate(new Request("https://alpha.local/api/config/generate",{method:"POST",body:JSON.stringify(b),headers:{"content-type":"application/json"}}),env);const data=await generated.json();if(!generated.ok||!data.valid)return json(data,400);
+  const id=crypto.randomUUID(),now=Date.now(),existing=await env.DB.prepare("SELECT COALESCE(MAX(version),0) v FROM config_snapshots WHERE name=?").bind(name).first();const version=Number(existing?.v||0)+1;await env.DB.prepare("INSERT INTO config_snapshots(id,name,version,status,user_id,template_id,settings_json,config_text,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)").bind(id,name,version,"active",b.user_id||null,b.template_id||null,JSON.stringify({...settings,ip_snapshot:data.ip,proxy_snapshot:data.proxy}),data.config,now,now).run();await log(env,"config.snapshot.create","admin",`${name}:v${version}`);return json({ok:true,id,version,config:data.config,ip:data.ip,proxy:data.proxy});
+}
+
+async function listNodes(req,env){
+  const q=new URL(req.url).searchParams;
+  const status=String(q.get("status")||"").trim();
+  const maintenance=q.get("maintenance");
+  const where=[]; const args=[];
+  if(status){where.push("status=?");args.push(status)}
+  if(maintenance!==null && ["0","1"].includes(maintenance)){where.push("maintenance_mode=?");args.push(Number(maintenance))}
+  const sql=`SELECT * FROM nodes ${where.length?"WHERE "+where.join(" AND "):""} ORDER BY maintenance_mode ASC, drain_mode ASC, status='online' DESC, id DESC`;
+  const r=await env.DB.prepare(sql).bind(...args).all();
+  return json(r.results||[]);
+}
+
+async function nodeOperations(req,env,id){
+  const b=await req.json().catch(()=>({}));
+  const action=String(b.action||"").trim();
+  const n=await env.DB.prepare("SELECT * FROM nodes WHERE id=?").bind(id).first();
+  if(!n)return json({error:"not found"},404);
+  const now=Date.now();
+  if(action==="maintenance_on"||action==="maintenance_off"){
+    const v=action==="maintenance_on"?1:0;
+    await env.DB.prepare("UPDATE nodes SET maintenance_mode=?,updated_at=? WHERE id=?").bind(v,now,id).run();
+  }else if(action==="drain_on"||action==="drain_off"){
+    const v=action==="drain_on"?1:0;
+    await env.DB.prepare("UPDATE nodes SET drain_mode=?,updated_at=? WHERE id=?").bind(v,now,id).run();
+  }else if(action==="weight"){
+    const v=Math.max(1,Math.min(1000,Number(b.value||100)));
+    await env.DB.prepare("UPDATE nodes SET weight=?,updated_at=? WHERE id=?").bind(v,now,id).run();
+  }else if(action==="capacity"){
+    const v=Math.max(0,Math.min(100000,Number(b.value||0)));
+    await env.DB.prepare("UPDATE nodes SET capacity=?,updated_at=? WHERE id=?").bind(v,now,id).run();
+  }else if(action==="tags"){
+    const tags=Array.isArray(b.value)?b.value.map(x=>String(x).trim()).filter(Boolean).slice(0,20):[];
+    await env.DB.prepare("UPDATE nodes SET tags=?,updated_at=? WHERE id=?").bind(JSON.stringify(tags),now,id).run();
+  }else if(action==="notes"){
+    await env.DB.prepare("UPDATE nodes SET notes=?,updated_at=? WHERE id=?").bind(String(b.value||"").slice(0,1000),now,id).run();
+  }else{return json({error:"Unsupported node operation"},400)}
+  await log(env,`node.operation.${action}`,"admin",String(id));
+  return json({ok:true,action});
+}
+
+async function nodeOperationsSummary(req,env){
+  const [t,o,m,d,h]=await Promise.all([
+    env.DB.prepare("SELECT COUNT(*) c FROM nodes").first(),
+    env.DB.prepare("SELECT COUNT(*) c FROM nodes WHERE status='online' AND maintenance_mode=0 AND drain_mode=0").first(),
+    env.DB.prepare("SELECT COUNT(*) c FROM nodes WHERE maintenance_mode=1").first(),
+    env.DB.prepare("SELECT COUNT(*) c FROM nodes WHERE drain_mode=1").first(),
+    env.DB.prepare("SELECT COUNT(*) c FROM node_health_history WHERE checked_at>=strftime('%s','now')*1000-86400000 AND status='offline'").first()
+  ]);
+  return json({total:Number(t?.c||0),ready:Number(o?.c||0),maintenance:Number(m?.c||0),draining:Number(d?.c||0),offline_events_24h:Number(h?.c||0)});
+}
+
 function validateNodeEndpoint(value){
   try{
     const u=new URL(String(value||"").trim());
@@ -333,8 +470,9 @@ async function createNode(req,env){
   const endpoint=validateNodeEndpoint(b.endpoint);
   if(!endpoint.ok)return json({error:endpoint.error},400);
   const id=token(8), now=Date.now();
-  await env.DB.prepare("INSERT INTO nodes(id,name,country,endpoint,protocol,status,latency_ms,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)")
-    .bind(id,String(b.name).slice(0,120),String(b.country||"").slice(0,80),endpoint.url,b.protocol||"VLESS","unknown",null,now,now).run();
+  const tags=Array.isArray(b.tags)?b.tags.map(x=>String(x).trim()).filter(Boolean).slice(0,20):[];
+  await env.DB.prepare("INSERT INTO nodes(id,name,country,endpoint,protocol,status,latency_ms,created_at,updated_at,weight,capacity,tags,notes) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)")
+    .bind(id,String(b.name).slice(0,120),String(b.country||"").slice(0,80),endpoint.url,b.protocol||"VLESS","unknown",null,now,now,Math.max(1,Math.min(1000,Number(b.weight||100))),Math.max(0,Math.min(100000,Number(b.capacity||0))),JSON.stringify(tags),String(b.notes||"").slice(0,1000)).run();
   await log(env,"node.create","admin",b.name);
   return json({ok:true,id});
 }
@@ -345,8 +483,9 @@ async function updateNode(req,env,id){
     if(!endpoint.ok)return json({error:endpoint.error},400);
     b.endpoint=endpoint.url;
   }
-  const r=await env.DB.prepare("UPDATE nodes SET name=COALESCE(?,name),country=COALESCE(?,country),endpoint=COALESCE(?,endpoint),protocol=COALESCE(?,protocol),status=COALESCE(?,status),latency_ms=COALESCE(?,latency_ms),updated_at=? WHERE id=?")
-    .bind(b.name??null,b.country??null,b.endpoint??null,b.protocol??null,b.status??null,b.latency_ms??null,now,id).run();
+  const tags=b.tags===undefined?null:(Array.isArray(b.tags)?JSON.stringify(b.tags.map(x=>String(x).trim()).filter(Boolean).slice(0,20)):"[]");
+  const r=await env.DB.prepare("UPDATE nodes SET name=COALESCE(?,name),country=COALESCE(?,country),endpoint=COALESCE(?,endpoint),protocol=COALESCE(?,protocol),status=COALESCE(?,status),latency_ms=COALESCE(?,latency_ms),weight=COALESCE(?,weight),capacity=COALESCE(?,capacity),tags=COALESCE(?,tags),notes=COALESCE(?,notes),updated_at=? WHERE id=?")
+    .bind(b.name??null,b.country??null,b.endpoint??null,b.protocol??null,b.status??null,b.latency_ms??null,b.weight==null?null:Math.max(1,Math.min(1000,Number(b.weight))),b.capacity==null?null:Math.max(0,Math.min(100000,Number(b.capacity))),tags,b.notes==null?null:String(b.notes).slice(0,1000),now,id).run();
   if(!r.meta.changes)return json({error:"not found"},404);
   await log(env,"node.update","admin",id); return json({ok:true});
 }
