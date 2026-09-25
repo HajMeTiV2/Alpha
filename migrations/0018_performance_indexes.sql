@@ -5,4 +5,4 @@ CREATE INDEX IF NOT EXISTS idx_activity_created_action ON activity_logs(created_
 CREATE INDEX IF NOT EXISTS idx_traffic_captured ON traffic_snapshots(captured_at);
 CREATE INDEX IF NOT EXISTS idx_health_node_checked ON node_health_history(node_id, checked_at);
 CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_created_status ON webhook_deliveries(created_at, status);
-CREATE INDEX IF NOT EXISTS idx_job_runs_created_status ON automation_job_runs(created_at, status);
+CREATE INDEX IF NOT EXISTS idx_job_runs_started_status ON automation_job_runs(started_at, status);
