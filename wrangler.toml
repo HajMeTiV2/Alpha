@@ -16,4 +16,4 @@ ALPHA_CHANNEL = "@V2rayTun0"
 ALPHA_AUTHOR = "@Mehtif"
 
 [triggers]
-crons = ["0 * * * *"]
+crons = ["*/5 * * * *"]
