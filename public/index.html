@@ -31,7 +31,7 @@
 
 <section id="login" class="auth"><div class="auth-card"><div class="logo">A</div><small>ALPHA CONTROL</small><h1>ورود به پنل</h1><p>مرکز کنترل امن Alpha</p><input id="password" type="password" placeholder="رمز مدیریت"><button class="primary wide" onclick="login()">ورود به Alpha</button><em>@V2rayTun0</em><button class="text-link" type="button" onclick="showInstaller()">راه‌اندازی / نصب مجدد Alpha</button></div></section>
 <div id="app" class="hidden app"><aside id="alpha-sidebar"><div class="brand"><b>A</b><span>ALPHA<small>CONTROL CENTER</small></span></div><button class="sidebar-toggle" type="button" onclick="toggleSidebar()">☰ <span>منو</span></button><nav><button data-p="dashboard">⌂ <span>داشبورد</span></button><button data-p="users">♙ <span>کاربران</span></button><button data-p="nodes">◇ <span>نودها</span></button><button data-p="config-builder">✦ <span>ساخت کانفیگ</span></button><button data-p="subscriptions">▣ <span>اشتراک‌ها</span></button><button data-p="traffic">◫ <span>ترافیک</span></button><button data-p="reports">▤ <span>گزارش‌ها</span></button><button data-p="jobs">⚙ <span>Automation Center</span></button><button data-p="monitoring">◉ <span>Monitoring</span></button><button data-p="performance">⚡ <span>Performance</span></button><button data-p="integrations">⌁ <span>API و Integration</span></button><button data-p="activity">◌ <span>فعالیت و Audit</span></button><button data-p="security">▤ <span>امنیت و Backup</span></button><button data-p="production">☁ <span>Cloudflare / PWA</span></button><button data-p="settings">⚙ <span>دسترسی ادمین</span></button><button data-p="appearance">◐ <span>ظاهر و Panel</span></button></nav><footer><span>@V2rayTun0</span><button class="footer-shortcut" onclick="alphaOpenCommandPalette()">⌘K</button><button onclick="logout()">خروج</button></footer></aside>
-<main><header><span class="header-status">● سیستم آنلاین</span><div class="header-actions"><button class="icon-btn notification-trigger" aria-label="اعلان‌ها" onclick="alphaToggleNotifications()">♧<b id="alpha-notif-count" class="notif-count hidden">0</b></button><span>ALPHA v6.18.0</span></div></header>
+<main><header><span class="header-status">● سیستم آنلاین</span><div class="header-actions"><button class="icon-btn notification-trigger" aria-label="اعلان‌ها" onclick="alphaToggleNotifications()">♧<b id="alpha-notif-count" class="notif-count hidden">0</b></button><span>ALPHA v6.18.4</span></div></header>
 <section id="dashboard" class="page alpha-dashboard">
   <div class="alpha-dash-hero">
     <div class="alpha-hero-copy">
@@ -153,10 +153,10 @@
   <div class="section-head"><div><span class="eyebrow">CONFIG FACTORY</span><h2>ساخت کانفیگ</h2><p class="muted">IP Repository، Proxy Repository و Config Builder با Snapshot و Template.</p></div><div class="head-actions"><button class="ghost" onclick="alphaLoadConfigFactory()">↻ بروزرسانی</button><button class="primary" onclick="alphaCreateConfigSnapshot()">⚡ ساخت و ذخیره</button></div></div>
   <div class="config-factory-grid">
     <aside class="config-repositories">
-      <div class="panel-card repo-card"><div class="panel-title"><div><span class="eyebrow">IP REPOSITORY</span><h3>مخزن IPها</h3></div><button class="primary small" onclick="alphaAddRepoItem('ip')">+ IP</button></div><input id="config-ip-search" class="config-search" placeholder="جستجوی IP، کشور، Source..." oninput="alphaLoadConfigRepo('ip')"><div id="config-ip-list" class="config-repo-list"></div></div>
-      <div class="panel-card repo-card"><div class="panel-title"><div><span class="eyebrow">PROXY REPOSITORY</span><h3>مخزن Proxyها</h3></div><button class="primary small" onclick="alphaAddRepoItem('proxy')">+ Proxy</button></div><input id="config-proxy-search" class="config-search" placeholder="جستجوی Host، کشور، Type..." oninput="alphaLoadConfigRepo('proxy')"><div id="config-proxy-list" class="config-repo-list"></div></div>
+      <div class="panel-card repo-card"><div class="panel-title"><div><span class="eyebrow">IP REPOSITORY</span><h3>مخزن IPها</h3></div><button class="primary small" onclick="alphaAddRepoItem('ip')">+ IP</button></div><div class="repo-source-tabs"><button class="active" onclick="alphaToggleRepoSource('ip','local',this)">مخزن</button><button onclick="alphaToggleRepoSource('ip','suggested',this)">پیشنهادی</button></div><div id="config-ip-local"><input id="config-ip-search" class="config-search" placeholder="جستجوی IP، کشور، Source..." oninput="alphaLoadConfigRepo('ip')"><div id="config-ip-list" class="config-repo-list"></div></div><div id="config-ip-suggested" class="repo-suggested hidden"><div class="repo-suggested-head"><span>پیشنهادهای عمومی ZEUS</span><button class="ghost small" onclick="alphaLoadZeusSuggestions('ip')">↻</button></div><p>نمونه‌های تصادفی از همان مخزن عمومی ZEUS؛ قبل از استفاده تست شوند.</p><div id="config-ip-suggested-list" class="config-repo-list"></div></div></div>
+      <div class="panel-card repo-card"><div class="panel-title"><div><span class="eyebrow">PROXY REPOSITORY</span><h3>مخزن Proxyها</h3></div><button class="primary small" onclick="alphaAddRepoItem('proxy')">+ Proxy</button></div><div class="repo-source-tabs"><button class="active" onclick="alphaToggleRepoSource('proxy','local',this)">مخزن</button><button onclick="alphaToggleRepoSource('proxy','suggested',this)">پیشنهادی</button></div><div id="config-proxy-local"><input id="config-proxy-search" class="config-search" placeholder="جستجوی Host، کشور، Type..." oninput="alphaLoadConfigRepo('proxy')"><div id="config-proxy-list" class="config-repo-list"></div></div><div id="config-proxy-suggested" class="repo-suggested hidden"><div class="repo-suggested-head"><select id="zeus-proxy-country" onchange="alphaLoadZeusSuggestions('proxy')"></select><button class="ghost small" onclick="alphaLoadZeusSuggestions('proxy')">↻</button></div><p>پروکسی‌های همان ساختار کشوری ZEUS؛ موارد پیشنهادی تأییدنشده هستند.</p><div id="config-proxy-suggested-list" class="config-repo-list"></div></div></div>
     </aside>
-    <main class="panel-card config-builder-card">
+    <div class="panel-card config-builder-card">
       <div class="config-builder-head"><div><span class="eyebrow">BUILDER</span><h3>Config Builder</h3><small>تنظیمات را مرحله‌ای و بدون شلوغی مدیریت کن.</small></div><div class="config-mode"><button id="config-mode-simple" class="active" onclick="alphaSetConfigMode('simple')">Simple</button><button id="config-mode-advanced" onclick="alphaSetConfigMode('advanced')">Advanced</button></div></div>
       <div class="config-presets" id="config-presets"></div>
       <div class="config-accordion">
@@ -169,7 +169,7 @@
       </div>
       <div class="config-validation" id="config-validation">برای ساخت، یک IP و در صورت نیاز کاربر را انتخاب کن.</div>
       <div class="config-actions"><button class="ghost" onclick="alphaValidateConfig()">✓ اعتبارسنجی</button><button class="primary" onclick="alphaPreviewConfig()">پیش‌نمایش کانفیگ</button></div>
-    </main>
+    </div>
     <aside class="config-preview">
       <div class="panel-card"><div class="panel-title"><div><span class="eyebrow">PREVIEW</span><h3>پیش‌نمایش نهایی</h3></div><span id="config-preview-status" class="badge">DRAFT</span></div><div id="config-preview-meta" class="config-preview-meta"></div><pre id="config-output" class="config-output">هنوز کانفیگی ساخته نشده است.</pre></div>
       <div class="panel-card"><div class="panel-title"><div><span class="eyebrow">SNAPSHOT HISTORY</span><h3>آخرین نسخه‌ها</h3></div></div><div id="config-snapshot-list" class="config-snapshot-list"></div></div>
@@ -242,7 +242,7 @@
   <div class="panel-card"><div class="panel-title"><div><span class="eyebrow">DELIVERY</span><h3>نکات اتصال</h3></div></div><div class="integration-help"><p><b>API:</b> هدر <code>X-ALPHA-API-Key</code> را ارسال کن.</p><p><b>Health:</b> endpoint عمومی با کلید معتبر: <code>/api/v1/health</code></p><p><b>Webhook:</b> رویداد تست با هدرهای <code>X-ALPHA-Event</code> و <code>X-ALPHA-Signature</code> ارسال می‌شود.</p><p class="muted">Secret کلیدها فقط هنگام ساخت یک‌بار نمایش داده می‌شود.</p></div></div>
 </section>
 
-<section id="settings-page" class="page hidden"><div class="head"><h1>تنظیمات</h1></div><div class="panel settings"><p>برند <b>ALPHA</b></p><p>کانال <b>@V2rayTun0</b></p><p>سازنده <b>@Mehtif</b></p><p>نسخه <b>6.18.0</b></p></div></section>
+<section id="settings-page" class="page hidden"><div class="head"><h1>تنظیمات</h1></div><div class="panel settings"><p>برند <b>ALPHA</b></p><p>کانال <b>@V2rayTun0</b></p><p>سازنده <b>@Mehtif</b></p><p>نسخه <b>6.18.1</b></p></div></section>
 
 <section id="subscription-center" class="view hidden">
   <div class="section-head">
@@ -330,7 +330,7 @@
 <div id="alpha-diagnostics" class="alpha-diagnostics"></div>
 <div class="alpha-prod-card"><div><span class="eyebrow">SESSION SECURITY</span><h3>مدیریت Session</h3><p class="muted" id="alpha-session-info">در حال دریافت وضعیت...</p></div><button class="danger" onclick="alphaRevokeSessions()">خروج از همه Sessionها</button></div>
 <div class="alpha-prod-card"><div><span class="eyebrow">PWA</span><h3>نصب ALPHA روی دستگاه</h3><p class="muted">اگر مرورگر از نصب PWA پشتیبانی کند، ALPHA می‌تواند مانند یک اپ مستقل اجرا شود.</p></div><button class="ghost" onclick="alphaInstallPWA()">Install ALPHA</button></div>
-<div class="alpha-prod-card"><div><span class="eyebrow">VERSION</span><h3>ALPHA v6.18.0</h3><p class="muted">Production security center, session controls, authentication monitoring and audit visibility.</p></div><span class="badge active">READY</span></div>
+<div class="alpha-prod-card"><div><span class="eyebrow">VERSION</span><h3>ALPHA v6.18.4</h3><p class="muted">Production security center, session controls, authentication monitoring and audit visibility.</p></div><span class="badge active">READY</span></div>
 </section>
 <section id="alpha-settings-center" class="view hidden">
   <div class="section-head">

@@ -446,3 +446,21 @@ body[data-density="compact"] .intel-grid,body.alpha-compact .intel-grid{gap:8px}
   .app>aside,.app>aside.collapsed{width:56px!important;min-width:56px!important;max-width:56px!important}
   .app>main,.app.sidebar-collapsed>main{margin-left:56px!important}
 }
+
+
+/* ALPHA 6.18.4 — Config Factory mobile layout: nested main element removed; enforce real single-column workspace */
+.config-builder-card{width:auto;min-width:0;max-width:none;margin:0;box-sizing:border-box}
+.config-repositories,.config-preview{min-width:0;max-width:none}
+@media (max-width:900px){
+  .app .config-factory-grid{display:grid!important;grid-template-columns:minmax(0,1fr)!important;width:100%!important;max-width:100%!important;min-width:0!important;gap:12px!important}
+  .app .config-repositories,.app .config-builder-card,.app .config-preview{width:100%!important;min-width:0!important;max-width:100%!important;box-sizing:border-box!important}
+}
+@media (max-width:600px){
+  .app .config-factory-grid{display:flex!important;flex-direction:column!important;align-items:stretch!important}
+  .app .config-repositories{display:flex!important;flex-direction:column!important;gap:10px!important}
+  .app .config-builder-card{display:block!important;padding:11px!important}
+  .app .config-preview{display:flex!important;flex-direction:column!important;gap:10px!important}
+  .app .config-preview .panel-card{width:100%!important}
+  .app .config-builder-head{width:100%!important}
+  .app .config-accordion,.app .config-section-grid{width:100%!important;min-width:0!important}
+}
