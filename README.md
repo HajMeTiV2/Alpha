@@ -118,3 +118,7 @@ After deployment run:
 - Version labels and health endpoint aligned to 6.0.0.
 
 This release focuses on management UX, observability and operational safety. It intentionally does not copy ZEUS features related to stealth scanning, proxy harvesting/rotation, DPI evasion or traffic-obfuscation controls.
+
+## ALPHA 6.19.1 — Config Factory UI Rebuild
+
+Config Factory is now mobile-first with a single continuous workflow for user/subscription, Cloudflare ports, IP repository, proxy repository, manual settings, validation, preview, Sub Link and snapshot history. No new migration is required.
