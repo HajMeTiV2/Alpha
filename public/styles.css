@@ -387,3 +387,47 @@ body[data-density="compact"] .intel-grid,body.alpha-compact .intel-grid{gap:8px}
 
 /* ALPHA 6.18 — Config Factory */
 .alpha-config-page{min-height:calc(100vh - 80px)}.config-factory-grid{display:grid;grid-template-columns:280px minmax(420px,1fr) 330px;gap:14px;align-items:start}.config-repositories,.config-preview{display:grid;gap:14px}.repo-card{padding:13px}.config-search{width:100%;margin:0 0 10px;padding:10px 12px;border-radius:11px;border:1px solid var(--border,#233044);background:rgba(255,255,255,.025);color:inherit}.config-repo-list{display:grid;gap:7px;max-height:370px;overflow:auto}.config-repo-item{position:relative;text-align:right;width:100%;display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px;border:1px solid var(--border,#233044);border-radius:12px;background:rgba(255,255,255,.018);color:inherit;cursor:pointer}.config-repo-item:hover,.config-repo-item.selected{border-color:rgba(57,217,255,.38);background:rgba(57,217,255,.055)}.repo-main b,.repo-main small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.repo-main small,.repo-side small{color:var(--muted,#8d99aa);font-size:9px;margin-top:3px}.repo-side{text-align:left}.repo-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#ef4444;margin-left:5px}.repo-dot.on{background:#22c55e;box-shadow:0 0 8px rgba(34,197,94,.4)}.repo-tags{grid-column:1/-1;display:flex;gap:4px;flex-wrap:wrap}.repo-tags em{font-style:normal;font-size:8px;padding:3px 6px;border-radius:7px;background:rgba(255,255,255,.05);color:#9daabd}.config-builder-card{padding:16px}.config-builder-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.config-builder-head h3{margin:3px 0}.config-builder-head small{color:var(--muted,#8d99aa)}.config-mode{display:flex;padding:3px;border:1px solid var(--border,#233044);border-radius:10px}.config-mode button,.config-presets button{border:0;background:transparent;color:var(--muted,#8d99aa);padding:7px 11px;border-radius:8px;cursor:pointer}.config-mode button.active,.config-presets button:hover{background:rgba(57,217,255,.12);color:#dff9ff}.config-presets{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}.config-accordion{display:grid;gap:8px}.config-accordion details{border:1px solid var(--border,#233044);border-radius:13px;background:rgba(255,255,255,.018);overflow:hidden}.config-accordion summary{list-style:none;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:13px;cursor:pointer;font-weight:700}.config-accordion summary::-webkit-details-marker{display:none}.config-accordion summary em{font-style:normal;font-size:9px;color:#79d7ff;padding:4px 7px;border-radius:8px;background:rgba(57,217,255,.07)}.config-section-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:0 13px 13px}.config-section-grid label{display:grid;gap:5px;font-size:10px;color:#9aa8ba}.config-section-grid input,.config-section-grid select{width:100%;padding:9px 10px;border:1px solid var(--border,#233044);border-radius:9px;background:rgba(0,0,0,.14);color:inherit}.config-inline-check{display:flex!important;align-items:center;gap:8px;padding:9px;border:1px dashed rgba(255,255,255,.08);border-radius:9px}.config-inline-check input{width:auto}.config-validation{margin-top:12px;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.025);color:#9caabe;font-size:11px}.config-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}.config-preview .panel-card{padding:14px}.config-preview-meta{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:10px}.config-preview-meta div{padding:9px;border-radius:10px;background:rgba(255,255,255,.025)}.config-preview-meta span,.config-preview-meta b{display:block}.config-preview-meta span{font-size:9px;color:#8492a7}.config-preview-meta b{font-size:10px;margin-top:3px;overflow-wrap:anywhere}.config-output{min-height:150px;white-space:pre-wrap;word-break:break-all;padding:12px;border-radius:11px;background:#050912;border:1px solid rgba(57,217,255,.1);font-size:10px;line-height:1.8;color:#cfe8ff}.config-snapshot-list{display:grid;gap:6px}.config-snapshot-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.05)}.config-snapshot-row:last-child{border-bottom:0}.config-snapshot-row b,.config-snapshot-row span{display:block}.config-snapshot-row b{font-size:10px}.config-snapshot-row b small{font-weight:500;color:#7dd9ff}.config-snapshot-row span{font-size:8px;color:#7f8da3;margin-top:3px}@media(max-width:1250px){.config-factory-grid{grid-template-columns:250px 1fr}.config-preview{grid-column:1/-1;grid-template-columns:1fr 1fr}.config-preview .panel-card{min-width:0}}@media(max-width:850px){.config-factory-grid{grid-template-columns:1fr}.config-preview{grid-column:auto;grid-template-columns:1fr}.config-section-grid{grid-template-columns:1fr}.config-builder-head{flex-direction:column}.config-mode{width:100%}.config-mode button{flex:1}.config-repo-list{max-height:260px}}
+.repo-source-tabs{display:flex;gap:5px;margin:8px 0}.repo-source-tabs button{border:1px solid var(--border,#233044);background:rgba(255,255,255,.02);color:var(--muted,#8d99aa);padding:6px 9px;border-radius:8px;font-size:9px;cursor:pointer}.repo-source-tabs button.active{background:rgba(57,217,255,.1);color:#dff9ff;border-color:rgba(57,217,255,.3)}.repo-suggested{padding-top:2px}.repo-suggested-head{display:flex;align-items:center;gap:6px;margin-bottom:6px}.repo-suggested-head span{font-size:9px;font-weight:800;color:#a8c7d8;flex:1}.repo-suggested-head select{flex:1;min-width:0;padding:7px 8px;border:1px solid var(--border,#233044);border-radius:8px;background:rgba(0,0,0,.14);color:inherit;font-size:9px}.repo-suggested p{font-size:8px;line-height:1.7;color:#78879b;margin:0 0 8px}.config-suggestion-item{display:flex;align-items:center;justify-content:space-between;gap:7px;padding:9px;border:1px dashed rgba(57,217,255,.18);border-radius:11px;background:rgba(57,217,255,.025)}.config-suggestion-item>div{min-width:0}.config-suggestion-item b,.config-suggestion-item small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.config-suggestion-item b{font-size:9px}.config-suggestion-item small{font-size:8px;color:#7f8da3;margin-top:3px}.config-suggestion-item .primary.small{flex:0 0 auto}
+/* ALPHA 6.18.2 — Config Factory mobile workspace polish */
+@media (max-width:1100px){
+  .app .config-factory-grid{grid-template-columns:minmax(0,1fr) !important;gap:12px}
+  .app .config-repositories{grid-template-columns:repeat(2,minmax(0,1fr));display:grid}
+  .app .config-preview{grid-column:auto !important;grid-template-columns:1fr !important}
+}
+@media (max-width:700px){
+  .app{overflow-x:hidden}
+  .app>main{padding-left:60px!important;width:100%!important;max-width:100%!important;min-width:0!important;overflow-x:hidden!important}
+  .app .page,.app .view{width:100%!important;max-width:none!important;min-width:0!important;padding:14px 10px!important}
+  .app .section-head{display:flex;flex-direction:column;align-items:stretch!important}
+  .app .section-head .head-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px;width:100%}
+  .app .section-head .head-actions button{min-width:0;padding:10px 8px}
+  .app .config-factory-grid{display:flex!important;flex-direction:column;gap:10px;width:100%;min-width:0}
+  .app .config-repositories{display:flex!important;flex-direction:column;gap:10px;width:100%;min-width:0}
+  .app .repo-card,.app .config-builder-card,.app .config-preview .panel-card{width:100%;min-width:0;max-width:100%;overflow:hidden}
+  .app .repo-card{padding:11px}
+  .app .repo-source-tabs{overflow-x:auto;flex-wrap:nowrap;padding-bottom:2px}
+  .app .repo-source-tabs button{flex:0 0 auto;white-space:nowrap}
+  .app .config-repo-list{max-height:240px;min-width:0}
+  .app .config-builder-card{padding:12px}
+  .app .config-builder-head{gap:9px}
+  .app .config-builder-head h3{font-size:17px}
+  .app .config-presets{overflow-x:auto;flex-wrap:nowrap;padding-bottom:2px}
+  .app .config-presets button{flex:0 0 auto;white-space:nowrap}
+  .app .config-accordion details{border-radius:12px}
+  .app .config-accordion summary{padding:12px 10px;font-size:12px}
+  .app .config-section-grid{grid-template-columns:1fr!important;padding:0 10px 10px;gap:7px}
+  .app .config-section-grid label{font-size:10px}
+  .app .config-section-grid input,.app .config-section-grid select{min-height:42px;margin:0;padding:9px}
+  .app .config-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+  .app .config-actions button{min-width:0;padding:10px 7px}
+  .app .config-preview-meta{grid-template-columns:1fr 1fr}
+  .app .config-output{min-height:170px;max-height:360px;overflow:auto;font-size:9px}
+  .app .config-snapshot-list{max-height:260px;overflow:auto}
+}
+@media (max-width:390px){
+  .app>main{padding-left:56px!important}
+  .app>aside{width:56px!important;min-width:56px!important;max-width:56px!important}
+  .app .page,.app .view{padding:12px 8px!important}
+  .app .section-head .head-actions{grid-template-columns:1fr}
+  .app .config-preview-meta{grid-template-columns:1fr}
+}
