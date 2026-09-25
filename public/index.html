@@ -30,8 +30,8 @@
 </section>
 
 <section id="login" class="auth"><div class="auth-card"><div class="logo">A</div><small>ALPHA CONTROL</small><h1>ورود به پنل</h1><p>مرکز کنترل امن Alpha</p><input id="password" type="password" placeholder="رمز مدیریت"><button class="primary wide" onclick="login()">ورود به Alpha</button><em>@V2rayTun0</em><button class="text-link" type="button" onclick="showInstaller()">راه‌اندازی / نصب مجدد Alpha</button></div></section>
-<div id="app" class="hidden app"><aside id="alpha-sidebar"><div class="brand"><b>A</b><span>ALPHA<small>CONTROL CENTER</small></span></div><button class="sidebar-toggle" type="button" onclick="toggleSidebar()">☰ <span>منو</span></button><nav><button data-p="dashboard">⌂ <span>داشبورد</span></button><button data-p="users">♙ <span>کاربران</span></button><button data-p="nodes">◇ <span>نودها</span></button><button data-p="subscriptions">▣ <span>اشتراک‌ها</span></button><button data-p="traffic">◫ <span>ترافیک</span></button><button data-p="reports">▤ <span>گزارش‌ها</span></button><button data-p="activity">◌ <span>فعالیت و Audit</span></button><button data-p="security">▤ <span>امنیت و Backup</span></button><button data-p="production">☁ <span>Cloudflare / PWA</span></button><button data-p="settings">⚙ <span>دسترسی ادمین</span></button><button data-p="appearance">◐ <span>ظاهر و Panel</span></button></nav><footer><span>@V2rayTun0</span><button class="footer-shortcut" onclick="alphaOpenCommandPalette()">⌘K</button><button onclick="logout()">خروج</button></footer></aside>
-<main><header><span class="header-status">● سیستم آنلاین</span><div class="header-actions"><button class="icon-btn notification-trigger" aria-label="اعلان‌ها" onclick="alphaToggleNotifications()">♧<b id="alpha-notif-count" class="notif-count hidden">0</b></button><span>ALPHA v6.8.0</span></div></header>
+<div id="app" class="hidden app"><aside id="alpha-sidebar"><div class="brand"><b>A</b><span>ALPHA<small>CONTROL CENTER</small></span></div><button class="sidebar-toggle" type="button" onclick="toggleSidebar()">☰ <span>منو</span></button><nav><button data-p="dashboard">⌂ <span>داشبورد</span></button><button data-p="users">♙ <span>کاربران</span></button><button data-p="nodes">◇ <span>نودها</span></button><button data-p="subscriptions">▣ <span>اشتراک‌ها</span></button><button data-p="traffic">◫ <span>ترافیک</span></button><button data-p="reports">▤ <span>گزارش‌ها</span></button><button data-p="jobs">⚙ <span>Automation Center</span></button><button data-p="monitoring">◉ <span>Monitoring</span></button><button data-p="performance">⚡ <span>Performance</span></button><button data-p="integrations">⌁ <span>API و Integration</span></button><button data-p="activity">◌ <span>فعالیت و Audit</span></button><button data-p="security">▤ <span>امنیت و Backup</span></button><button data-p="production">☁ <span>Cloudflare / PWA</span></button><button data-p="settings">⚙ <span>دسترسی ادمین</span></button><button data-p="appearance">◐ <span>ظاهر و Panel</span></button></nav><footer><span>@V2rayTun0</span><button class="footer-shortcut" onclick="alphaOpenCommandPalette()">⌘K</button><button onclick="logout()">خروج</button></footer></aside>
+<main><header><span class="header-status">● سیستم آنلاین</span><div class="header-actions"><button class="icon-btn notification-trigger" aria-label="اعلان‌ها" onclick="alphaToggleNotifications()">♧<b id="alpha-notif-count" class="notif-count hidden">0</b></button><span>ALPHA v6.12.0</span></div></header>
 <section id="dashboard" class="page alpha-dashboard">
   <div class="alpha-dash-hero">
     <div class="alpha-hero-copy">
@@ -178,7 +178,43 @@
   </div>
 </section>
 
-<section id="settings-page" class="page hidden"><div class="head"><h1>تنظیمات</h1></div><div class="panel settings"><p>برند <b>ALPHA</b></p><p>کانال <b>@V2rayTun0</b></p><p>سازنده <b>@Mehtif</b></p><p>نسخه <b>2.0.0</b></p></div></section>
+<section id="alpha-jobs" class="view hidden alpha-jobs-page">
+  <div class="section-head"><div><span class="eyebrow">AUTOMATION CENTER</span><h2>مرکز Automation</h2><p class="muted">Health Check، Snapshot، Alert Sync و Cleanup را زمان‌بندی و اجرا کن.</p></div><div class="head-actions"><button class="ghost" onclick="alphaLoadJobs()">↻ بروزرسانی</button><button class="primary" onclick="alphaRunDueJobsNow()">اجرای Jobهای موعددار</button></div></div>
+  <div id="alpha-jobs-kpis" class="alpha-job-kpis"></div>
+  <div class="panel-card alpha-job-list-panel"><div class="panel-title"><div><span class="eyebrow">SCHEDULER</span><h3>Jobهای فعال</h3></div></div><div id="alpha-job-list" class="alpha-job-list"></div></div>
+  <div class="panel-card"><div class="panel-title"><div><span class="eyebrow">RUN HISTORY</span><h3>آخرین اجراها</h3></div></div><div id="alpha-job-runs" class="alpha-job-runs"></div></div>
+</section>
+
+
+<section id="alpha-monitoring" class="view hidden alpha-monitoring-page">
+  <div class="section-head"><div><span class="eyebrow">OBSERVABILITY CENTER</span><h2>Monitoring و سلامت سیستم</h2><p class="muted">نمای زنده از سرویس‌ها، خطاها، نودها و رخدادهای مهم ۲۴ ساعت اخیر.</p></div><button class="primary" onclick="alphaLoadMonitoring()">↻ بروزرسانی</button></div>
+  <div id="alpha-monitoring-kpis" class="monitor-kpis"></div>
+  <div class="monitor-grid">
+    <div class="panel-card"><div class="panel-title"><div><span class="eyebrow">SERVICES</span><h3>وضعیت سرویس‌ها</h3></div><span id="alpha-monitoring-state" class="badge">—</span></div><div id="alpha-monitoring-services" class="monitor-services"></div></div>
+    <div class="panel-card"><div class="panel-title"><div><span class="eyebrow">DEPENDENCIES</span><h3>Dependency Map</h3></div></div><div class="dependency-map"><div class="dep-node root">ALPHA Control</div><div class="dep-links"><span>↙</span><span>↓</span><span>↘</span></div><div class="dep-children"><div class="dep-node">D1 Database</div><div class="dep-node">Nodes</div><div class="dep-node">Integrations</div></div><div class="dep-links"><span>↙</span><span>↓</span><span>↘</span></div><div class="dep-children"><div class="dep-node">Automation</div><div class="dep-node">Notifications</div><div class="dep-node">Reports</div></div></div></div>
+  </div>
+  <div class="monitor-grid lower">
+    <div class="panel-card"><div class="panel-title"><div><span class="eyebrow">INCIDENT TIMELINE</span><h3>رخدادهای مهم</h3></div></div><div id="alpha-monitoring-incidents" class="incident-list"></div></div>
+    <div class="panel-card"><div class="panel-title"><div><span class="eyebrow">NODE TELEMETRY</span><h3>وضعیت Nodeها</h3></div></div><div id="alpha-monitoring-nodes" class="monitor-node-summary"></div></div>
+  </div>
+</section>
+
+<section id="alpha-performance" class="view hidden alpha-performance-page">
+  <div class="section-head"><div><span class="eyebrow">PERFORMANCE CENTER</span><h2>Performance و Scalability</h2><p class="muted">سلامت Queryها، زمان پاسخ و الگوهای بهینه‌سازی پنل.</p></div><button class="primary" onclick="alphaLoadPerformance()">↻ بروزرسانی</button></div>
+  <div id="alpha-performance-kpis" class="performance-kpis"></div>
+  <div class="performance-grid"><div class="panel-card"><div class="panel-title"><div><span class="eyebrow">QUERY PROBES</span><h3>Probeهای D1</h3></div></div><div id="alpha-performance-probes"></div></div><div class="panel-card"><div class="panel-title"><div><span class="eyebrow">OPTIMIZATION</span><h3>راهنمای بهینه‌سازی</h3></div></div><div id="alpha-performance-tips" class="performance-tips"></div></div></div>
+</section>
+<section id="alpha-integrations" class="view hidden alpha-integrations-page">
+  <div class="section-head"><div><span class="eyebrow">API & INTEGRATION CENTER</span><h2>مرکز API و Integration</h2><p class="muted">API Key، Webhook و وضعیت تحویل رویدادها را مدیریت کن.</p></div><div class="head-actions"><button class="ghost" onclick="alphaLoadIntegrations()">↻ بروزرسانی</button></div></div>
+  <div id="alpha-integration-kpis" class="alpha-job-kpis"></div>
+  <div class="integration-grid">
+    <div class="panel-card"><div class="panel-title"><div><span class="eyebrow">API KEYS</span><h3>کلیدهای API</h3></div><button class="primary small" onclick="alphaCreateApiKey()">+ کلید جدید</button></div><div id="alpha-api-keys"></div></div>
+    <div class="panel-card"><div class="panel-title"><div><span class="eyebrow">WEBHOOKS</span><h3>Webhookها</h3></div><button class="primary small" onclick="alphaCreateWebhook()">+ Webhook جدید</button></div><div id="alpha-webhooks"></div></div>
+  </div>
+  <div class="panel-card"><div class="panel-title"><div><span class="eyebrow">DELIVERY</span><h3>نکات اتصال</h3></div></div><div class="integration-help"><p><b>API:</b> هدر <code>X-ALPHA-API-Key</code> را ارسال کن.</p><p><b>Health:</b> endpoint عمومی با کلید معتبر: <code>/api/v1/health</code></p><p><b>Webhook:</b> رویداد تست با هدرهای <code>X-ALPHA-Event</code> و <code>X-ALPHA-Signature</code> ارسال می‌شود.</p><p class="muted">Secret کلیدها فقط هنگام ساخت یک‌بار نمایش داده می‌شود.</p></div></div>
+</section>
+
+<section id="settings-page" class="page hidden"><div class="head"><h1>تنظیمات</h1></div><div class="panel settings"><p>برند <b>ALPHA</b></p><p>کانال <b>@V2rayTun0</b></p><p>سازنده <b>@Mehtif</b></p><p>نسخه <b>6.16.0</b></p></div></section>
 
 <section id="subscription-center" class="view hidden">
   <div class="section-head">
@@ -240,14 +276,21 @@
     </div>
 
     <div class="panel-card">
-      <div class="panel-title"><div><span class="eyebrow">BACKUP</span><h3>پشتیبان‌گیری</h3></div></div>
+      <div class="panel-title"><div><span class="eyebrow">BACKUP</span><h3>پشتیبان‌گیری و بازیابی</h3></div></div>
       <p class="muted">Backup شامل داده‌های مدیریتی D1 است. فایل خروجی را خارج از Worker و در محل امن نگهداری کن.</p>
       <div class="backup-actions">
         <button class="primary" onclick="alphaBackupDownload()">دریافت Backup JSON</button>
         <button class="ghost" onclick="alphaBackupPreview()">بررسی Backup</button>
+        <button class="ghost" onclick="alphaCreateBackupManifest()">ثبت Manifest</button>
+      </div>
+      <div class="backup-restore-box">
+        <label class="file-pick">انتخاب فایل Backup JSON<input id="alpha-backup-file" type="file" accept="application/json,.json" onchange="alphaPrepareRestore(this)"></label>
+        <div id="alpha-restore-info" class="backup-info"></div>
+        <button id="alpha-restore-btn" class="danger" disabled onclick="alphaRestoreBackup()">Restore Backup</button>
       </div>
       <div id="alpha-backup-info" class="backup-info"></div>
-      <div class="security-note">توکن‌های Cloudflare و Secretهای Worker در Backup قرار نمی‌گیرند.</div>
+      <div id="alpha-backup-manifests" class="table-wrap"></div>
+      <div class="security-note">توکن‌های Cloudflare، Secretهای Worker، Sessionهای فعال و Audit Log عمداً در Restore برگردانده نمی‌شوند.</div>
     </div>
   </div>
 </section>
@@ -259,7 +302,7 @@
 <div id="alpha-diagnostics" class="alpha-diagnostics"></div>
 <div class="alpha-prod-card"><div><span class="eyebrow">SESSION SECURITY</span><h3>مدیریت Session</h3><p class="muted" id="alpha-session-info">در حال دریافت وضعیت...</p></div><button class="danger" onclick="alphaRevokeSessions()">خروج از همه Sessionها</button></div>
 <div class="alpha-prod-card"><div><span class="eyebrow">PWA</span><h3>نصب ALPHA روی دستگاه</h3><p class="muted">اگر مرورگر از نصب PWA پشتیبانی کند، ALPHA می‌تواند مانند یک اپ مستقل اجرا شود.</p></div><button class="ghost" onclick="alphaInstallPWA()">Install ALPHA</button></div>
-<div class="alpha-prod-card"><div><span class="eyebrow">VERSION</span><h3>ALPHA v6.8.0</h3><p class="muted">Production security center, session controls, authentication monitoring and audit visibility.</p></div><span class="badge active">READY</span></div>
+<div class="alpha-prod-card"><div><span class="eyebrow">VERSION</span><h3>ALPHA v6.12.0</h3><p class="muted">Production security center, session controls, authentication monitoring and audit visibility.</p></div><span class="badge active">READY</span></div>
 </section>
 <section id="alpha-settings-center" class="view hidden">
   <div class="section-head">
@@ -291,6 +334,17 @@
     <div class="alpha-ui-card"><label>Accent<select id="alpha-set-accent"><option value="cyan">Cyan</option><option value="violet">Violet</option><option value="green">Green</option><option value="amber">Amber</option></select></label></div>
     <div class="alpha-ui-card"><label><input type="checkbox" id="alpha-set-compact"> Compact Mode</label></div>
     <div class="alpha-ui-card"><label><input type="checkbox" id="alpha-set-notify"> Notifications</label></div>
+    <div class="alpha-ui-card"><label>زبان پنل<select id="alpha-set-language"><option value="fa">فارسی</option><option value="en">English</option></select></label></div>
+    <div class="alpha-ui-card"><label>Timezone<select id="alpha-set-timezone"><option value="Asia/Tehran">Asia/Tehran</option><option value="Europe/London">Europe/London</option><option value="UTC">UTC</option></select></label></div>
+    <div class="alpha-ui-card"><label>تراکم داشبورد<select id="alpha-set-density"><option value="comfortable">Comfortable</option><option value="compact">Compact</option><option value="spacious">Spacious</option></select></label></div>
+    <div class="alpha-ui-card"><label>پروفایل Shortcut<select id="alpha-set-shortcut"><option value="default">Default</option><option value="minimal">Minimal</option></select></label></div>
+    <div class="alpha-ui-card alpha-ui-wide"><b>ویجت‌های داشبورد</b><div class="workspace-widget-grid">
+      <label><input type="checkbox" id="alpha-widget-kpi" data-workspace-widget="kpi"> KPI</label>
+      <label><input type="checkbox" id="alpha-widget-risk" data-workspace-widget="risk"> Risk Monitor</label>
+      <label><input type="checkbox" id="alpha-widget-operations" data-workspace-widget="operations"> Operations</label>
+      <label><input type="checkbox" id="alpha-widget-traffic" data-workspace-widget="traffic"> Traffic</label>
+    </div></div>
+    <div class="alpha-ui-card alpha-ui-wide"><button class="ghost" onclick="alphaResetWorkspace()">بازنشانی Workspace</button></div>
   </div>
 </section>
 
