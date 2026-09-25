@@ -149,34 +149,75 @@
   <div class="alpha-list-meta"><span id="user-page-range">—</span><div><button class="ghost small" onclick="changeUserPage(-1)">‹ قبلی</button><button class="ghost small" onclick="changeUserPage(1)">بعدی ›</button></div></div>
   <div class="panel-card alpha-users-table-card"><div class="panel-title"><div><span class="eyebrow">USERS</span><h3>فهرست کاربران</h3></div><span class="muted" id="users-result-count">—</span></div><div id="pro-users-list" class="table-wrap alpha-users-table"><div class="dash-empty">در حال دریافت کاربران...</div></div></div>
 </section>
-<section id="config-builder" class="view hidden alpha-config-page">
-  <div class="section-head"><div><span class="eyebrow">CONFIG FACTORY</span><h2>ساخت کانفیگ</h2><p class="muted">IP Repository، Proxy Repository و Config Builder با Snapshot و Template.</p></div><div class="head-actions"><button class="ghost" onclick="alphaLoadConfigFactory()">↻ بروزرسانی</button><button class="primary" onclick="alphaCreateConfigSnapshot()">⚡ ساخت و ذخیره</button></div></div>
-  <div class="config-factory-grid">
-    <aside class="config-repositories">
-      <div class="panel-card repo-card"><div class="panel-title"><div><span class="eyebrow">IP REPOSITORY</span><h3>مخزن IPها</h3></div><button class="primary small" onclick="alphaAddRepoItem('ip')">+ IP</button></div><div class="repo-source-tabs"><button class="active" onclick="alphaToggleRepoSource('ip','local',this)">مخزن</button><button onclick="alphaToggleRepoSource('ip','suggested',this)">پیشنهادی</button></div><div id="config-ip-local"><input id="config-ip-search" class="config-search" placeholder="جستجوی IP، کشور، Source..." oninput="alphaLoadConfigRepo('ip')"><div id="config-ip-list" class="config-repo-list"></div></div><div id="config-ip-suggested" class="repo-suggested hidden"><div class="repo-suggested-head"><span>پیشنهادهای عمومی ZEUS</span><button class="ghost small" onclick="alphaLoadZeusSuggestions('ip')">↻</button></div><p>نمونه‌های تصادفی از همان مخزن عمومی ZEUS؛ قبل از استفاده تست شوند.</p><div id="config-ip-suggested-list" class="config-repo-list"></div></div></div>
-      <div class="panel-card repo-card"><div class="panel-title"><div><span class="eyebrow">PROXY REPOSITORY</span><h3>مخزن Proxyها</h3></div><button class="primary small" onclick="alphaAddRepoItem('proxy')">+ Proxy</button></div><div class="repo-source-tabs"><button class="active" onclick="alphaToggleRepoSource('proxy','local',this)">مخزن</button><button onclick="alphaToggleRepoSource('proxy','suggested',this)">پیشنهادی</button></div><div id="config-proxy-local"><input id="config-proxy-search" class="config-search" placeholder="جستجوی Host، کشور، Type..." oninput="alphaLoadConfigRepo('proxy')"><div id="config-proxy-list" class="config-repo-list"></div></div><div id="config-proxy-suggested" class="repo-suggested hidden"><div class="repo-suggested-head"><select id="zeus-proxy-country" onchange="alphaLoadZeusSuggestions('proxy')"></select><button class="ghost small" onclick="alphaLoadZeusSuggestions('proxy')">↻</button></div><p>پروکسی‌های همان ساختار کشوری ZEUS؛ موارد پیشنهادی تأییدنشده هستند.</p><div id="config-proxy-suggested-list" class="config-repo-list"></div></div></div>
-    </aside>
-    <div class="panel-card config-builder-card">
-      <div class="config-builder-head"><div><span class="eyebrow">BUILDER</span><h3>Config Builder</h3><small>تنظیمات را مرحله‌ای و بدون شلوغی مدیریت کن.</small></div><div class="config-mode"><button id="config-mode-simple" class="active" onclick="alphaSetConfigMode('simple')">Simple</button><button id="config-mode-advanced" onclick="alphaSetConfigMode('advanced')">Advanced</button></div></div>
-      <div class="config-presets" id="config-presets"></div>
-      <div class="config-accordion">
-        <details open><summary><span>۱. کاربر و اشتراک</span><em>ضروری</em></summary><div class="config-section-grid"><label>کاربر<select id="cfg-user"><option value="">انتخاب کاربر...</option></select></label><label>نام کانفیگ<input id="cfg-name" value="ALPHA Config"></label><label>Preset<select id="cfg-template" onchange="alphaApplyTemplate(this.value)"><option value="">بدون Template</option></select></label></div></details>
-        <details open><summary><span>۲. پروتکل و تنظیمات اصلی</span><em>ضروری</em></summary><div class="config-section-grid"><label>Protocol<select id="cfg-protocol"><option>VLESS</option><option>Trojan</option><option>VMess</option></select></label><label>Port<input id="cfg-port" type="number" value="443"></label><label>Transport<select id="cfg-transport"><option value="tcp">TCP</option><option value="ws">WebSocket</option><option value="grpc">gRPC</option><option value="httpupgrade">HTTPUpgrade</option></select></label></div></details>
-        <details open><summary><span>۳. IP و Proxy</span><em>ضروری / اختیاری</em></summary><div class="config-section-grid"><label>IP انتخاب‌شده<input id="cfg-ip-display" readonly placeholder="از مخزن IP انتخاب کن"></label><label>Proxy انتخاب‌شده<input id="cfg-proxy-display" readonly placeholder="اختیاری"></label><label class="config-inline-check"><input id="cfg-use-proxy" type="checkbox"> استفاده از Proxy در Metadata</label></div></details>
-        <details><summary><span>۴. TLS / Security</span><em>اختیاری</em></summary><div class="config-section-grid"><label>Security<select id="cfg-security"><option value="none">None</option><option value="tls">TLS</option><option value="reality">Reality</option></select></label><label>SNI<input id="cfg-sni" placeholder="example.com"></label><label>Fingerprint<input id="cfg-fp" placeholder="chrome"></label></div></details>
-        <details><summary><span>۵. Transport</span><em>Advanced</em></summary><div class="config-section-grid"><label>Path<input id="cfg-path" placeholder="/websocket"></label><label>Host<input id="cfg-host" placeholder="example.com"></label><label>Flow<input id="cfg-flow" placeholder="xtls-rprx-vision"></label></div></details>
-        <details><summary><span>۶. انقضا و Snapshot</span><em>مدیریت نسخه</em></summary><div class="config-section-grid"><label>وضعیت<select id="cfg-status"><option value="active">Active</option><option value="draft">Draft</option></select></label><label>یادداشت<input id="cfg-note" placeholder="توضیح داخلی"></label><label class="config-inline-check"><input id="cfg-save-template" type="checkbox"> ذخیره تنظیمات به عنوان Template</label></div></details>
+<section id="config-builder" class="view hidden alpha-config-studio">
+  <div class="cfg-studio-topbar">
+    <div><span class="eyebrow">ALPHA CONFIG STUDIO</span><h2>ساخت کانفیگ</h2><p>ساخت، مدیریت، سهمیه، زمان، IP، Proxy، پورت‌های Cloudflare و Sub Link در یک محیط واحد.</p></div>
+    <div class="cfg-top-actions"><button class="ghost" onclick="alphaResetConfigStudio()">پاک‌سازی</button><button class="primary" onclick="alphaCreateConfigSnapshot()">⚡ ساخت کانفیگ</button></div>
+  </div>
+  <div class="cfg-studio-layout">
+    <aside class="cfg-left-stack">
+      <div class="panel-card cfg-card">
+        <div class="cfg-card-head"><div><span class="eyebrow">IP REPOSITORY</span><h3>مخزن IP کلودفلر</h3></div><button class="primary small" onclick="alphaAddRepoItem('ip')">＋</button></div>
+        <div class="cfg-tabs"><button class="active" onclick="alphaToggleRepoSource('ip','local',this)">مخزن</button><button onclick="alphaToggleRepoSource('ip','suggested',this)">پیشنهادی</button></div>
+        <div id="config-ip-local"><div class="cfg-search-row"><input id="config-ip-search" placeholder="جستجوی IP / کشور" oninput="alphaLoadConfigRepo('ip')"><button class="ghost small" onclick="alphaLoadConfigRepo('ip')">↻</button></div><div id="config-ip-list" class="cfg-repo-list"></div></div>
+        <div id="config-ip-suggested" class="cfg-suggested hidden"><div class="cfg-suggested-head"><b>IPهای پیشنهادی ZEUS</b><button class="ghost small" onclick="alphaLoadZeusSuggestions('ip')">↻</button></div><div id="config-ip-suggested-list" class="cfg-repo-list"></div></div>
       </div>
-      <div class="config-validation" id="config-validation">برای ساخت، یک IP و در صورت نیاز کاربر را انتخاب کن.</div>
-      <div class="config-actions"><button class="ghost" onclick="alphaValidateConfig()">✓ اعتبارسنجی</button><button class="primary" onclick="alphaPreviewConfig()">پیش‌نمایش کانفیگ</button></div>
+      <div class="panel-card cfg-card">
+        <div class="cfg-card-head"><div><span class="eyebrow">PROXY REPOSITORY</span><h3>مخزن Proxy</h3></div><button class="primary small" onclick="alphaAddRepoItem('proxy')">＋</button></div>
+        <div class="cfg-country-row"><select id="cfg-proxy-country" onchange="alphaFilterConfigProxies()"><option value="ALL">همه کشورها</option></select><button class="ghost small" onclick="alphaLoadConfigRepo('proxy')">↻</button></div>
+        <div class="cfg-search-row"><input id="config-proxy-search" placeholder="Host / کشور / Type" oninput="alphaLoadConfigRepo('proxy')"></div>
+        <div id="config-proxy-list" class="cfg-repo-list"></div>
+        <div class="cfg-proxy-source"><button class="ghost small" onclick="alphaToggleRepoSource('proxy','suggested',this)">پیشنهادهای ZEUS</button><button class="ghost small" onclick="alphaToggleRepoSource('proxy','local',this)">مخزن من</button></div>
+        <div id="config-proxy-suggested" class="cfg-suggested hidden"><div id="config-proxy-suggested-list" class="cfg-repo-list"></div></div>
+      </div>
+    </aside>
+
+    <div class="cfg-main-column">
+      <div class="panel-card cfg-card cfg-user-card">
+        <div class="cfg-card-head"><div><span class="eyebrow">USER & SUBSCRIPTION</span><h3>کاربر، حجم و زمان</h3></div><button class="ghost small" onclick="document.getElementById('modal')?.showModal()">＋ کاربر جدید</button></div>
+        <div class="cfg-form-grid four">
+          <label>کاربر<select id="cfg-user" onchange="alphaConfigUserChanged()"><option value="">انتخاب کاربر...</option></select></label>
+          <label>نام کانفیگ<input id="cfg-name" value="ALPHA Config"></label>
+          <label>حجم <span class="cfg-label-note">GB</span><input id="cfg-quota" type="number" min="0" value="50"></label>
+          <label>دستگاه<input id="cfg-devices" type="number" min="1" value="1"></label>
+          <label>زمان اعتبار <span class="cfg-label-note">روز</span><input id="cfg-days" type="number" min="0" value="30"></label>
+          <label>پروتکل<select id="cfg-protocol"><option>VLESS</option><option>Trojan</option><option>VMess</option></select></label>
+          <label>Template<select id="cfg-template" onchange="alphaApplyTemplate(this.value)"><option value="">بدون Template</option></select></label>
+          <label>وضعیت<select id="cfg-status"><option value="active">فعال</option><option value="draft">پیش‌نویس</option><option value="suspended">تعلیق</option></select></label>
+        </div>
+        <div id="cfg-subscription-box" class="cfg-subscription-box"><span>Sub Link</span><b id="cfg-sub-link">بعد از انتخاب کاربر نمایش داده می‌شود.</b><button class="ghost small" onclick="alphaCopyConfigSubLink()">کپی</button></div>
+      </div>
+
+      <div class="panel-card cfg-card">
+        <div class="cfg-card-head"><div><span class="eyebrow">CLOUDFLARE PORTS</span><h3>پورت‌های ساخت کانفیگ</h3></div><button class="ghost small" onclick="alphaSelectAllPorts(true)">انتخاب همه</button></div>
+        <div class="cfg-port-groups">
+          <div><b>TLS PORT</b><div id="cfg-tls-ports" class="cfg-port-chips"></div></div>
+          <div><b>NON-TLS PORT</b><div id="cfg-nontls-ports" class="cfg-port-chips"></div></div>
+        </div>
+        <label class="cfg-custom-port">پورت دستی<input id="cfg-custom-ports" placeholder="مثلاً 443,2053,8443"></label>
+      </div>
+
+      <div class="panel-card cfg-card">
+        <div class="cfg-card-head"><div><span class="eyebrow">MANUAL SETTINGS</span><h3>تنظیمات دستی کامل</h3></div><div class="cfg-mode"><button id="config-mode-simple" class="active" onclick="alphaSetConfigMode('simple')">ساده</button><button id="config-mode-advanced" onclick="alphaSetConfigMode('advanced')">پیشرفته</button></div></div>
+        <div class="cfg-accordion">
+          <details open><summary><span>① IP و Proxy</span><em>اصلی</em></summary><div class="cfg-form-grid three"><label>IP انتخابی<input id="cfg-ip-display" readonly placeholder="از مخزن IP انتخاب کن"></label><label>Proxy انتخابی<input id="cfg-proxy-display" readonly placeholder="اختیاری"></label><label>کشور Proxy<select id="cfg-proxy-country-build" onchange="alphaFilterConfigProxies()"><option value="ALL">همه کشورها</option></select></label></div><input id="cfg-ip-id" type="hidden"><input id="cfg-proxy-id" type="hidden"></details>
+          <details open><summary><span>② امنیت و TLS</span><em>اصلی</em></summary><div class="cfg-form-grid three"><label>Security<select id="cfg-security"><option value="none">None</option><option value="tls">TLS</option><option value="reality">Reality</option></select></label><label>SNI<input id="cfg-sni" placeholder="example.com"></label><label>Fingerprint<select id="cfg-fp"><option value="chrome">chrome</option><option value="firefox">firefox</option><option value="safari">safari</option><option value="edge">edge</option></select></label></div></details>
+          <details open><summary><span>③ Transport</span><em>اصلی</em></summary><div class="cfg-form-grid four"><label>Transport<select id="cfg-transport"><option value="ws">WebSocket</option><option value="tcp">TCP</option><option value="grpc">gRPC</option><option value="httpupgrade">HTTPUpgrade</option></select></label><label>Path<input id="cfg-path" value="/" placeholder="/websocket"></label><label>Host<input id="cfg-host" placeholder="example.com"></label><label>Flow<input id="cfg-flow" placeholder="xtls-rprx-vision"></label></div></details>
+          <details><summary><span>④ محدودیت‌ها و مدیریت</span><em>پیشرفته</em></summary><div class="cfg-form-grid four"><label>Auto Reset حجم<input id="cfg-reset-days" type="number" min="0" value="0"></label><label>IP Limit<input id="cfg-ip-limit" type="number" min="0" value="0"></label><label>Max Connections<input id="cfg-max-connections" type="number" min="0" value="0"></label><label>Block Ads<select id="cfg-block-ads"><option value="0">خاموش</option><option value="1">روشن</option></select></label><label>Block NSFW<select id="cfg-block-nsfw"><option value="0">خاموش</option><option value="1">روشن</option></select></label><label>Auto Rotate IP<select id="cfg-auto-rotate"><option value="0">خاموش</option><option value="1">روشن</option></select></label><label>Rotation Time<input id="cfg-rotate-time" type="number" min="0" value="0" placeholder="دقیقه"></label><label>Direct Connection<select id="cfg-direct"><option value="1">فعال</option><option value="0">خاموش</option></select></label></div></details>
+          <details><summary><span>⑤ Fragment / TLS Pattern</span><em>پیشرفته</em></summary><div class="cfg-form-grid three"><label>Fragment Length<input id="cfg-frag-len" value="200-3000"></label><label>Fragment Interval<input id="cfg-frag-int" value="1-2"></label><label>Advanced Fragment<textarea id="cfg-advanced-frag" rows="3" placeholder='JSON یا تنظیمات دستی'></textarea></label><label>Cipher Suites<input id="cfg-cipher-suites" placeholder="TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256"></label><label>TLS Mask<input id="cfg-tls-mask" placeholder="اختیاری"></label><label>Fingerprint<input id="cfg-fingerprint-manual" placeholder="chrome"></label></div></details>
+          <details><summary><span>⑥ یادداشت و Template</span><em>پیشرفته</em></summary><div class="cfg-form-grid three"><label>یادداشت<textarea id="cfg-note" rows="3"></textarea></label><label class="cfg-check-box"><input id="cfg-save-template" type="checkbox"> ذخیره به‌عنوان Template</label><label>نام Template<input id="cfg-template-name" placeholder="My Preset"></label></div></details>
+        </div>
+      </div>
+      <div class="cfg-action-bar"><div id="config-validation" class="cfg-validation">یک کاربر، IP و حداقل یک پورت را انتخاب کن.</div><div class="cfg-action-buttons"><button class="ghost" onclick="alphaValidateConfig()">✓ اعتبارسنجی</button><button class="primary" onclick="alphaPreviewConfig()">پیش‌نمایش</button><button class="success" onclick="alphaCreateConfigSnapshot()">ساخت و ذخیره</button></div></div>
     </div>
-    <aside class="config-preview">
-      <div class="panel-card"><div class="panel-title"><div><span class="eyebrow">PREVIEW</span><h3>پیش‌نمایش نهایی</h3></div><span id="config-preview-status" class="badge">DRAFT</span></div><div id="config-preview-meta" class="config-preview-meta"></div><pre id="config-output" class="config-output">هنوز کانفیگی ساخته نشده است.</pre></div>
-      <div class="panel-card"><div class="panel-title"><div><span class="eyebrow">SNAPSHOT HISTORY</span><h3>آخرین نسخه‌ها</h3></div></div><div id="config-snapshot-list" class="config-snapshot-list"></div></div>
+
+    <aside class="cfg-right-stack">
+      <div class="panel-card cfg-card cfg-preview-card"><div class="cfg-card-head"><div><span class="eyebrow">PREVIEW</span><h3>پیش‌نمایش کانفیگ</h3></div><span id="config-preview-status" class="badge">DRAFT</span></div><div id="config-preview-meta" class="cfg-preview-meta"></div><pre id="config-output" class="config-output">هنوز کانفیگی ساخته نشده است.</pre></div>
+      <div class="panel-card cfg-card"><div class="cfg-card-head"><div><span class="eyebrow">SUB LINK</span><h3>لینک اشتراک</h3></div></div><div id="cfg-sub-link-card" class="cfg-link-box">کاربر انتخاب نشده است.</div><div class="cfg-link-actions"><button class="ghost small" onclick="alphaCopyConfigSubLink()">کپی لینک</button><button class="ghost small" onclick="alphaOpenConfigSubLink()">باز کردن</button></div></div>
+      <div class="panel-card cfg-card"><div class="cfg-card-head"><div><span class="eyebrow">SNAPSHOT HISTORY</span><h3>نسخه‌های ساخته‌شده</h3></div></div><div id="config-snapshot-list" class="config-snapshot-list"></div></div>
     </aside>
   </div>
 </section>
-
 <section id="subscriptions-page" class="page hidden"><div class="head"><div><small>SUBSCRIPTIONS</small><h1>اشتراک‌ها</h1></div><button class="primary" onclick="openSubModal()">+ اشتراک جدید</button></div><div class="panel"><div class="table"><table><thead><tr><th>کاربر</th><th>پروتکل</th><th>Quota</th><th>مصرف</th><th>دستگاه</th><th>وضعیت</th><th>عملیات</th></tr></thead><tbody id="subs-list"></tbody></table></div></div></section>
 <section id="nodes-page" class="page hidden">
   <div class="section-head">
